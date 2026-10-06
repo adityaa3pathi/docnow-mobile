@@ -19,12 +19,18 @@ export function useResumeBooking() {
     pathRef.current = pathname;
   });
   const userId = user?.id;
+  const userRef = useRef(userId);
+  useEffect(() => {
+    userRef.current = userId;
+  });
 
   const check = useCallback(async () => {
     if (!userId || anyCheckoutOpen()) return;
     const saved = await loadActiveBooking();
     // Another account's record is left alone: only its owner may resume or clear it.
     if (!saved || saved.userId !== userId) return;
+    // The booking screen already re-reads when the app returns.
+    if (pathRef.current === `/consult/booking/${saved.id}`) return;
     const lock = resumeKey(saved.id);
     if (!acquire(lock)) return;
     try {
@@ -33,9 +39,14 @@ export function useResumeBooking() {
         view = await consult.booking(saved.id);
       } catch (e) {
         // A network or server error keeps the record for the next return to the app.
-        if (errorStatus(e) === 404) await clearActiveBooking();
+        if (errorStatus(e) === 404) {
+          const current = await loadActiveBooking();
+          if (current?.id === saved.id) await clearActiveBooking();
+        }
         return;
       }
+      // The user may have signed out or switched during the read.
+      if (userRef.current !== userId) return;
       const now = serverNow();
       if (resumeAction(saved, userId, view, now) === 'clear') {
         const d = decide(view, { nowMs: now, confirmStartedAt: null });

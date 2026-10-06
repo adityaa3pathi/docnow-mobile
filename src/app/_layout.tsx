@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +17,12 @@ function ResumeBooking() {
 
 function Routes() {
   const { user, loading } = useAuth();
+  const queryClient = useQueryClient();
+
+  // The next account on this phone must never see the last one's cached bookings.
+  useEffect(() => {
+    if (!user) queryClient.clear();
+  }, [user, queryClient]);
 
   useEffect(() => {
     if (!loading) SplashScreen.hideAsync();

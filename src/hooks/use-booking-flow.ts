@@ -31,11 +31,17 @@ export function useBookingFlow(id: string, enabled: boolean) {
   const [announcement, setAnnouncement] = useState('');
   const alive = useRef(true);
   const lastSeconds = useRef<number | null>(null);
+  const watching = useRef(false);
+
+  const loadSeq = useRef(0);
 
   const load = useCallback(async () => {
+    const mine = ++loadSeq.current;
     try {
       const view = await consult.booking(id);
       if (!alive.current) return null;
+      // An older answer must not overwrite a newer one.
+      if (mine !== loadSeq.current) return view;
       setBooking(view);
       setError(null);
       return view;
@@ -70,19 +76,20 @@ export function useBookingFlow(id: string, enabled: boolean) {
     if (enabled) void load();
   }, [enabled, load]);
 
-  useEffect(() => {
-    if (!active) return;
-    // Catches the clock up at once when the app returns to the front.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setNow(Date.now());
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [active]);
-
   const decision: Decision | null = useMemo(() => {
     if (!booking) return null;
     return applyVerifyHint(decide(booking, { nowMs: serverNow(now), confirmStartedAt }), hint);
   }, [booking, now, confirmStartedAt, hint]);
+
+  // The clock only matters while the hold countdown shows.
+  const ticking = active && decision?.kind === 'pay';
+  useEffect(() => {
+    if (!ticking) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [ticking]);
 
   // A payment seen on the server starts the 60 second confirming window.
   useEffect(() => {
@@ -90,12 +97,23 @@ export function useBookingFlow(id: string, enabled: boolean) {
     if (booking?.paymentCaptured && confirmStartedAt === null) setConfirmStartedAt(serverNow());
   }, [booking?.paymentCaptured, confirmStartedAt]);
 
+  // Timer reads skip a tick while one is still in flight, so slow networks never stack requests.
+  const watchLoad = useCallback(async () => {
+    if (watching.current) return;
+    watching.current = true;
+    try {
+      await load();
+    } finally {
+      watching.current = false;
+    }
+  }, [load]);
+
   const polling = decision?.kind === 'poll' && active;
   useEffect(() => {
     if (!polling) return;
-    const t = setInterval(() => void load(), POLL_INTERVAL_MS);
+    const t = setInterval(() => void watchLoad(), POLL_INTERVAL_MS);
     return () => clearInterval(t);
-  }, [polling, load]);
+  }, [polling, watchLoad]);
 
   const result = decision?.kind === 'result' ? decision.result : null;
 
@@ -107,10 +125,10 @@ export function useBookingFlow(id: string, enabled: boolean) {
     const t = setInterval(() => {
       ticks += 1;
       if (ticks > LATE_WATCH_MAX_TICKS) clearInterval(t);
-      else void load();
+      else void watchLoad();
     }, LATE_WATCH_INTERVAL_MS);
     return () => clearInterval(t);
-  }, [lateWatch, load]);
+  }, [lateWatch, watchLoad]);
 
   useEffect(() => {
     if (!result || !isFinalResult(result)) return;
@@ -119,7 +137,8 @@ export function useBookingFlow(id: string, enabled: boolean) {
       if (saved?.id !== id || saved.userId !== userId) return;
       // A dead booking must not hand its key to the next attempt.
       if (result !== 'booked') await forgetKey(saved.slotId, saved.patientId);
-      await clearActiveBooking();
+      const current = await loadActiveBooking();
+      if (current?.id === id) await clearActiveBooking();
     })();
   }, [result, id, userId]);
 
@@ -151,8 +170,8 @@ export function useBookingFlow(id: string, enabled: boolean) {
   );
 
   const pay = useCallback(async () => {
-    if (!booking || opening || !acquire(checkoutKey(id))) return;
     const lockId = checkoutKey(id);
+    if (!booking || opening || !acquire(lockId)) return;
     setPayNote(null);
     const fresh = await load();
     if (!fresh) {

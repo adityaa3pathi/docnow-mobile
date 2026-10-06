@@ -19,11 +19,11 @@ async function loadSdk(): Promise<Sdk> {
   try {
     const mod = (await import('react-native-razorpay')) as unknown as { default?: Sdk } & Partial<Sdk>;
     const sdk = mod.default ?? (mod as Sdk);
-    if (!sdk?.open) throw new SdkMissingError();
-    return sdk;
+    if (typeof sdk?.open === 'function') return sdk;
   } catch {
-    throw new SdkMissingError();
+    // Falls through to the missing-SDK error below.
   }
+  throw new SdkMissingError();
 }
 
 /** Opens native checkout and returns one outcome. It never decides whether the booking is paid. */

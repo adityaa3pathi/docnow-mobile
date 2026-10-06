@@ -70,7 +70,9 @@ api.interceptors.response.use(
       });
       await refreshing;
       return api(original);
-    } catch {
+    } catch (e) {
+      // A network or server failure during refresh must not sign the user out.
+      if (isAxiosError(e) && (!e.response || e.response.status >= 500)) throw error;
       await clearTokens();
       onSessionExpired();
       throw error;

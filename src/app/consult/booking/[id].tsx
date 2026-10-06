@@ -107,7 +107,7 @@ export default function BookingScreen() {
       )}
       {decision.kind === 'poll' && (
         <>
-          {paidButUnsettled || booking.paymentCaptured || flow.paidHere ? <ConfirmingNotice /> : <CheckingNotice />}
+          {booking.paymentCaptured || flow.paidHere ? <ConfirmingNotice /> : <CheckingNotice />}
           {summary}
           <View style={[styles.button, styles.disabled]} accessibilityRole="button" accessibilityLabel="Pay, not available right now" accessibilityState={{ disabled: true }}>
             <Text style={styles.buttonText}>Pay</Text>

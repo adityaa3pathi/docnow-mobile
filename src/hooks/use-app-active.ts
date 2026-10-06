@@ -5,16 +5,18 @@ import { AppState } from 'react-native';
 export function useAppActive(onReturn?: () => void) {
   const [active, setActive] = useState(AppState.currentState === 'active');
   const callback = useRef(onReturn);
+  const wasActive = useRef(AppState.currentState === 'active');
   useEffect(() => {
     callback.current = onReturn;
   });
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      setActive((was) => {
-        if (state === 'active' && !was) callback.current?.();
-        return state === 'active';
-      });
+      const now = state === 'active';
+      const returned = now && !wasActive.current;
+      wasActive.current = now;
+      setActive(now);
+      if (returned) callback.current?.();
     });
     return () => sub.remove();
   }, []);

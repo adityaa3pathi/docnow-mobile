@@ -56,12 +56,8 @@ export default function BookScreen() {
       }
       try {
         // A thin profile can not make a Self person, and that is fine to skip.
-        try {
-          await peopleApi.ensureSelf();
-        } catch {
-          // The saved list below still loads.
-        }
-        const [d, slots, list] = await Promise.all([consult.doctor(doctorId), consult.slots(doctorId), peopleApi.list()]);
+        const listPeople = peopleApi.ensureSelf().catch(() => undefined).then(() => peopleApi.list());
+        const [d, slots, list] = await Promise.all([consult.doctor(doctorId), consult.slots(doctorId), listPeople]);
         if (!alive) return;
         const found = slots.find((s) => s.id === slotId);
         if (!found || Date.parse(found.startsAt) <= serverNow()) {
