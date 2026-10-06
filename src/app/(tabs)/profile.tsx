@@ -1,0 +1,25 @@
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { Colors, Radius } from '@/constants/theme';
+import { useAuth } from '@/lib/auth';
+
+export default function ProfileScreen() {
+  const { user, signOut } = useAuth();
+  return (
+    <View style={styles.wrap}>
+      <Text style={styles.name}>{user?.name ?? 'DocNow user'}</Text>
+      <Text style={styles.mobile}>{user?.mobile}</Text>
+      <Pressable style={styles.button} onPress={signOut}>
+        <Text style={styles.buttonText}>Log out</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: { flex: 1, padding: 24, backgroundColor: Colors.background, gap: 6 },
+  name: { fontSize: 22, fontWeight: '700', color: Colors.foreground },
+  mobile: { color: Colors.mutedForeground, marginBottom: 20 },
+  button: { backgroundColor: Colors.primaryTint, borderRadius: Radius.xl, padding: 16, alignItems: 'center' },
+  buttonText: { color: Colors.primary, fontWeight: '700' },
+});
