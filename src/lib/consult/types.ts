@@ -102,6 +102,20 @@ export interface DoctorProfileInput {
     photoUrl?: string;
 }
 
+export interface DoctorConsultation {
+    id: string;
+    startsAt: string;
+    endsAt: string;
+    status: ConsultationStatus;
+    type: 'VIDEO' | 'AUDIO' | 'CHAT';
+    patientName: string;
+}
+
+export interface DoctorConsultationPage {
+    items: DoctorConsultation[];
+    nextCursor: string | null;
+}
+
 export interface DoctorMe extends DoctorSummary {
     userId: string;
     registrationNumber: string;

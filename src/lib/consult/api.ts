@@ -3,7 +3,7 @@ import { isAxiosError } from 'axios';
 
 import { api, errorMessage } from '@/lib/api';
 import type {
-    BookingView, CancelPreview, CancelResult, CreateBookingResponse, DoctorPublicProfile, DoctorSummary,
+    AvailabilityWindow, BookingView, DoctorConsultationPage, DoctorMe, DoctorProfileInput, LeaveEntry, CancelPreview, CancelResult, CreateBookingResponse, DoctorPublicProfile, DoctorSummary,
     Slot, Specialty, VerifyResponse,
 } from './types';
 
@@ -30,6 +30,7 @@ export function errorText(e: unknown): string | undefined {
 }
 
 const get = <T>(url: string, config?: object) => api.get<T>(url, config).then((r) => r.data);
+const put = <T>(url: string, body?: unknown) => api.put<T>(url, body).then((r) => r.data);
 const post = <T>(url: string, body?: unknown) => api.post<T>(url, body).then((r) => r.data);
 
 export const consult = {
@@ -52,4 +53,18 @@ export const people = {
     ensureSelf: () => post<Person>('/api/profile/patients/ensure-self'),
     add: (body: { name: string; relation: string; age: number; gender: string }) =>
         post<{ patient: Person }>('/api/profile/patients', body).then((r) => r.patient),
+};
+
+export const doctor = {
+    me: () => get<DoctorMe>('/api/doctor/me'),
+    register: (body: DoctorProfileInput) => post<DoctorMe>('/api/doctor/register', body),
+    resubmit: (body: DoctorProfileInput) => post<DoctorMe>('/api/doctor/resubmit', body),
+    setAvailability: (windows: AvailabilityWindow[], slotMinutes?: number) =>
+        put<AvailabilityWindow[]>('/api/doctor/me/availability', { windows, slotMinutes }),
+    leave: () => get<LeaveEntry[]>('/api/doctor/me/leave'),
+    addLeave: (body: { startsAt: string; endsAt: string; reason?: string }) =>
+        post<{ leave: LeaveEntry; bookedConflicts: number }>('/api/doctor/me/leave', body),
+    removeLeave: (id: string) => api.delete(`/api/doctor/me/leave/${id}`).then((r) => r.data),
+    consultations: (scope: 'upcoming' | 'past', cursor?: string | null) =>
+        get<DoctorConsultationPage>('/api/doctor/me/consultations', { params: { scope, limit: 30, ...(cursor ? { cursor } : {}) } }),
 };

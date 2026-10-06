@@ -2,10 +2,14 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Radius } from '@/constants/theme';
+import { useDoctorMe } from '@/hooks/use-doctor-me';
 import { useAuth } from '@/lib/auth';
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
+  const doctor = useDoctorMe();
+  // No application yet is a loaded, empty answer. Anything else opens the Doctor area.
+  const doctorLabel = doctor.isSuccess && doctor.data === null ? 'Join as a doctor' : 'Doctor area';
   return (
     <View style={styles.wrap}>
       <Text style={styles.name}>{user?.name ?? 'DocNow user'}</Text>
@@ -16,6 +20,13 @@ export default function ProfileScreen() {
         accessibilityRole="button"
         accessibilityLabel="My consultations">
         <Text style={styles.rowText}>My consultations</Text>
+      </Pressable>
+      <Pressable
+        style={styles.row}
+        onPress={() => router.push('/doctor')}
+        accessibilityRole="button"
+        accessibilityLabel={doctorLabel}>
+        <Text style={styles.rowText}>{doctorLabel}</Text>
       </Pressable>
       <Pressable style={styles.button} onPress={signOut}>
         <Text style={styles.buttonText}>Log out</Text>
