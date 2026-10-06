@@ -1,6 +1,8 @@
 import axios, { AxiosError, create, InternalAxiosRequestConfig, isAxiosError } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
+import { recordServerDate } from '@/lib/consult/time';
+
 const ACCESS_KEY = 'docnow_access';
 const REFRESH_KEY = 'docnow_refresh';
 
@@ -50,7 +52,11 @@ async function refreshTokens() {
 }
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Hold countdowns use the server clock, so a wrong phone clock cannot skew them.
+    recordServerDate(res.headers?.date as string | undefined);
+    return res;
+  },
   async (error: AxiosError) => {
     const original = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
     const isAuthCall = original?.url?.startsWith('/api/auth/');

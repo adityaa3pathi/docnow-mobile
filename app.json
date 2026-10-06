@@ -9,7 +9,14 @@
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "in.docnow.app",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "tez",
+          "phonepe",
+          "paytmmp"
+        ]
+      }
     },
     "android": {
       "package": "in.docnow.app",
