@@ -4,7 +4,7 @@ import { isAxiosError } from 'axios';
 import { api, errorMessage } from '@/lib/api';
 import type {
     AvailabilityWindow, BookingView, DoctorConsultationPage, DoctorMe, DoctorProfileInput, LeaveEntry, CancelPreview, CancelResult, CreateBookingResponse, DoctorPublicProfile, DoctorSummary,
-    Slot, Specialty, VerifyResponse,
+    Slot, Specialty, VerifyResponse, CartAddResult, ConsultNote, ConsultationStatus, DoctorConsultationRecord, JoinResponse, NoteInput, Prescription, PrescriptionInput,
 } from './types';
 
 export interface Person {
@@ -32,6 +32,8 @@ export function errorText(e: unknown): string | undefined {
 const get = <T>(url: string, config?: object) => api.get<T>(url, config).then((r) => r.data);
 const put = <T>(url: string, body?: unknown) => api.put<T>(url, body).then((r) => r.data);
 const post = <T>(url: string, body?: unknown) => api.post<T>(url, body).then((r) => r.data);
+// Raw bytes through the shared client, so the PDF gets the same sign-in and token refresh.
+const bytes = (url: string) => api.get<ArrayBuffer>(url, { responseType: 'arraybuffer' }).then((r) => r.data);
 
 export const consult = {
     specialties: () => get<Specialty[]>('/api/consult/specialties'),
@@ -46,6 +48,10 @@ export const consult = {
         post<VerifyResponse>(`/api/consult/bookings/${id}/verify`, body),
     cancelPreview: (id: string) => get<CancelPreview>(`/api/consult/bookings/${id}/cancel-preview`),
     cancel: (id: string, reason?: string) => post<CancelResult>(`/api/consult/bookings/${id}/cancel`, { reason }),
+    join: (id: string) => post<JoinResponse>(`/api/consult/bookings/${id}/join`),
+    prescription: (id: string) => get<Prescription>(`/api/consult/bookings/${id}/prescription`),
+    prescriptionPdf: (id: string) => bytes(`/api/consult/bookings/${id}/prescription.pdf`),
+    addTestsToCart: (id: string) => post<CartAddResult>(`/api/consult/bookings/${id}/recommended-tests/cart`),
 };
 
 export const people = {
@@ -67,4 +73,12 @@ export const doctor = {
     removeLeave: (id: string) => api.delete(`/api/doctor/me/leave/${id}`).then((r) => r.data),
     consultations: (scope: 'upcoming' | 'past', cursor?: string | null) =>
         get<DoctorConsultationPage>('/api/doctor/me/consultations', { params: { scope, limit: 30, ...(cursor ? { cursor } : {}) } }),
+    consultation: (id: string) => get<DoctorConsultationRecord>(`/api/doctor/me/consultations/${id}`),
+    join: (id: string) => post<JoinResponse>(`/api/doctor/me/consultations/${id}/join`),
+    end: (id: string) => post<{ status: ConsultationStatus }>(`/api/doctor/me/consultations/${id}/end`),
+    saveNotes: (id: string, body: NoteInput) => put<ConsultNote>(`/api/doctor/me/consultations/${id}/notes`, body),
+    issuePrescription: (id: string, body: PrescriptionInput) => post<Prescription>(`/api/doctor/me/consultations/${id}/prescription`, body),
+    reissuePrescription: (id: string, body: { reason: string; prescription: PrescriptionInput }) =>
+        post<Prescription>(`/api/doctor/me/consultations/${id}/prescription/reissue`, body),
+    prescriptionPdf: (id: string) => bytes(`/api/doctor/me/consultations/${id}/prescription.pdf`),
 };

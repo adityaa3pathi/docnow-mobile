@@ -43,7 +43,16 @@
         }
       ],
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "@livekit/react-native-expo-plugin",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "DocNow uses your camera for video consultations with your doctor.",
+          "microphonePermission": "DocNow uses your microphone so you can talk to your doctor during a consultation."
+        }
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -5,6 +5,8 @@ export type ConsultationStatus =
 
 export type DoctorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
+export type ConsultationType = 'VIDEO' | 'AUDIO' | 'CHAT';
+
 export interface Specialty {
     id: string;
     name: string;
@@ -61,6 +63,8 @@ export interface BookingView extends CreateBookingResponse {
     underStaffCheck: boolean;
     refundPaise: number;
     refundStatus: 'PENDING' | 'PROCESSED' | 'FAILED' | null;
+    type: ConsultationType;
+    hasPrescription: boolean;
 }
 
 export type VerifyOutcome = 'confirmed' | 'reclaimed' | 'already' | 'refund_created' | 'flagged' | 'unknown_order';
@@ -107,13 +111,102 @@ export interface DoctorConsultation {
     startsAt: string;
     endsAt: string;
     status: ConsultationStatus;
-    type: 'VIDEO' | 'AUDIO' | 'CHAT';
+    type: ConsultationType;
     patientName: string;
 }
 
 export interface DoctorConsultationPage {
     items: DoctorConsultation[];
     nextCursor: string | null;
+}
+
+// ── Video room and prescriptions ────────────────────────
+
+export interface JoinResponse {
+    /** LiveKit server URL (wss). */
+    url: string;
+    roomId: string;
+    /** `doctor`, `patient`, or an `-audio` variant that may only publish the microphone. */
+    role: string;
+    /** LiveKit access token for this person and room; it carries their display name. */
+    token: string;
+}
+
+export interface Medicine {
+    name: string;
+    dose: string;
+    frequency: string;
+    duration: string;
+    instructions: string;
+}
+
+export interface RecommendedTest {
+    code: string;
+    name: string;
+}
+
+export interface Prescription {
+    id: string;
+    consultationId: string;
+    /** Starts at 1; a correction voids the current version and issues the next. */
+    version: number;
+    medicines: Medicine[];
+    recommendedTests: RecommendedTest[];
+    advice: string | null;
+    doctorSnapshot: { displayName: string; qualification: string; registrationNumber: string; registrationCouncil: string; specialty: string };
+    patientSnapshot: { name: string; age: number; gender: string };
+    issuedAt: string;
+}
+
+export interface PrescriptionInput {
+    medicines: Medicine[];
+    testCodes: string[];
+    advice?: string;
+}
+
+export interface ConsultNote {
+    complaints: string | null;
+    findings: string | null;
+    diagnosis: string | null;
+    advice: string | null;
+    followUpDays: number | null;
+    updatedAt: string;
+}
+
+export interface NoteInput {
+    complaints?: string;
+    findings?: string;
+    diagnosis?: string;
+    advice?: string;
+    followUpDays?: number | null;
+}
+
+export interface CartAddResult {
+    added: string[];
+    skipped: { code: string; reason: string }[];
+}
+
+export interface DoctorConsultationRecord {
+    id: string;
+    status: ConsultationStatus;
+    type: ConsultationType;
+    startsAt: string;
+    slot: { endsAt: string };
+    patient: { name: string; age: number; gender: string };
+    patientJoinedAt: string | null;
+    doctorJoinedAt: string | null;
+    note: ConsultNote | null;
+    /** The current version only; voided ones are in previousVersions. */
+    prescription: Prescription | null;
+    previousVersions: PrescriptionVersion[];
+}
+
+export interface PrescriptionVersion {
+    id: string;
+    version: number;
+    issuedAt: string;
+    voidedAt: string;
+    voidReason: string | null;
 }
 
 export interface DoctorMe extends DoctorSummary {

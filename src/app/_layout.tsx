@@ -1,3 +1,4 @@
+import { registerGlobals } from '@livekit/react-native';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -7,6 +8,8 @@ import { useEffect } from 'react';
 import { useResumeBooking } from '@/hooks/use-resume-booking';
 import { AuthProvider, useAuth } from '@/lib/auth';
 
+// LiveKit needs its WebRTC globals before any room is made, so this runs once at start.
+registerGlobals();
 SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 

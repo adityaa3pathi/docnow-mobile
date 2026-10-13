@@ -5,10 +5,13 @@ import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text
 
 import { BookingSummary } from '@/components/consult/booking-summary';
 import { CancelSheet } from '@/components/consult/cancel-sheet';
+import { JoinPanel } from '@/components/consult/join-panel';
+import { PatientPrescription } from '@/components/consult/patient-prescription';
 import { CheckingNotice, ConfirmingNotice, PaymentStatus } from '@/components/consult/payment-status';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
 import { Colors, Radius } from '@/constants/theme';
 import { useBookingFlow } from '@/hooks/use-booking-flow';
+import { consult } from '@/lib/consult/api';
 import { formatCountdown } from '@/lib/consult/bookingFlow';
 import { formatPaise } from '@/lib/consult/format';
 import { statusInfo } from '@/lib/consult/status';
@@ -119,6 +122,25 @@ export default function BookingScreen() {
           <PaymentStatus result={decision.result} fresh={fresh} statusLabel={info.label} doctorId={booking.doctorId} />
           {summary}
           <RefundLine booking={booking} />
+          <JoinPanel
+            status={booking.status}
+            type={booking.type}
+            startsAt={booking.startsAt}
+            endsAt={booking.endsAt}
+            otherParty="doctor"
+            join={() => consult.join(booking.consultationId)}
+            onChange={() => void flow.refetch()}
+          />
+          {booking.hasPrescription ? (
+            <PatientPrescription bookingId={booking.consultationId} />
+          ) : booking.status === 'IN_PROGRESS' || booking.status === 'COMPLETED' ? (
+            <View style={styles.waitingRx}>
+              <Text style={styles.waitingRxText}>Your prescription will show here once the doctor issues it.</Text>
+              <Pressable onPress={() => void flow.refetch()} accessibilityRole="button" accessibilityLabel="Check again" style={styles.checkAgain}>
+                <Text style={styles.outlineText}>Check again</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </>
       )}
       {canCancel && (
@@ -160,4 +182,7 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.5 },
   outline: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.primary },
   outlineText: { color: Colors.primary, fontWeight: '700' },
+  waitingRx: { gap: 10, padding: 14, borderRadius: Radius.lg, backgroundColor: '#f3f4f6' },
+  waitingRxText: { color: '#374151' },
+  checkAgain: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
 });

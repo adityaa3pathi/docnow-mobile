@@ -35,6 +35,7 @@ export default function DoctorLayout() {
       <Stack.Protected guard={approved}>
         <Stack.Screen name="index" options={{ title: 'Doctor area' }} />
         <Stack.Screen name="consultations" options={{ title: 'Consultations' }} />
+        <Stack.Screen name="consultation/[id]" options={{ title: 'Consultation' }} />
         <Stack.Screen name="hours" options={{ title: 'Weekly hours' }} />
         <Stack.Screen name="leave" options={{ title: 'Leave' }} />
       </Stack.Protected>
