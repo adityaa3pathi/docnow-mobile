@@ -3,9 +3,10 @@ import { isAxiosError } from 'axios';
 
 import { api, errorMessage } from '@/lib/api';
 import type {
-    AvailabilityWindow, BookingView, CancelPreview, CancelResult, CartAddResult, CreateBookingResponse,
-    DoctorConsultationPage, DoctorMe, DoctorProfileInput, DoctorPublicProfile, DoctorSummary,
-    JoinResponse, LeaveEntry, Prescription, Slot, Specialty, VerifyResponse,
+    AvailabilityWindow, BookingView, CancelPreview, CancelResult, CartAddResult, ConsultNote, ConsultationStatus,
+    CreateBookingResponse, DoctorConsultationPage, DoctorConsultationRecord, DoctorMe, DoctorProfileInput,
+    DoctorPublicProfile, DoctorSummary, JoinResponse, LeaveEntry, NoteInput, Prescription, PrescriptionInput, Slot,
+    Specialty, VerifyResponse,
 } from './types';
 
 export interface Person {
@@ -72,4 +73,12 @@ export const doctor = {
     removeLeave: (id: string) => api.delete(`/api/doctor/me/leave/${id}`).then((r) => r.data),
     consultations: (scope: 'upcoming' | 'past', cursor?: string | null) =>
         get<DoctorConsultationPage>('/api/doctor/me/consultations', { params: { scope, limit: 30, ...(cursor ? { cursor } : {}) } }),
+    consultation: (id: string) => get<DoctorConsultationRecord>(`/api/doctor/me/consultations/${id}`, { timeout: 10_000 }),
+    join: (id: string) => post<JoinResponse>(`/api/doctor/me/consultations/${id}/join`),
+    /** Moves IN_PROGRESS to COMPLETED and closes the video room for everyone. */
+    end: (id: string) => post<{ status: ConsultationStatus }>(`/api/doctor/me/consultations/${id}/end`),
+    /** Notes lock once a prescription is issued (409). */
+    saveNotes: (id: string, body: NoteInput) => put<ConsultNote>(`/api/doctor/me/consultations/${id}/notes`, body),
+    issuePrescription: (id: string, body: PrescriptionInput) =>
+        post<Prescription>(`/api/doctor/me/consultations/${id}/prescription`, body),
 };

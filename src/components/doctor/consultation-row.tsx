@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/consult/badge';
 import { Colors, Radius } from '@/constants/theme';
@@ -11,14 +12,24 @@ export function ConsultationRow({ item }: { item: DoctorConsultation }) {
   const status = doctorStatusLabel(item.status);
   const when = `${formatIstDay(item.startsAt)}, ${formatIstTime(item.startsAt)} to ${formatIstTime(item.endsAt)}`;
   return (
-    <View style={styles.card} accessible accessibilityLabel={`${item.patientName}, ${when}, Indian time, ${status.label}`}>
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      onPress={() => router.push({ pathname: '/doctor/consultations/[id]', params: { id: item.id } })}
+      accessibilityRole="button"
+      accessibilityHint="Opens the consultation"
+      accessibilityLabel={`${item.patientName}, ${when}, Indian time, ${status.label}`}>
       <View style={styles.top}>
         <Text style={styles.name} numberOfLines={1}>{item.patientName}</Text>
         <Badge tone={status.tone}>{status.label}</Badge>
       </View>
-      <Text style={styles.when}>{when}</Text>
-      <Text style={styles.small}>Indian time</Text>
-    </View>
+      <View style={styles.bottom}>
+        <View>
+          <Text style={styles.when}>{when}</Text>
+          <Text style={styles.small}>Indian time</Text>
+        </View>
+        <Text style={styles.chevron}>›</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -28,4 +39,7 @@ const styles = StyleSheet.create({
   name: { flex: 1, fontWeight: '700', fontSize: 16, color: Colors.foreground },
   when: { fontWeight: '600', color: Colors.foreground },
   small: { fontSize: 12, color: Colors.mutedForeground },
+  pressed: { opacity: 0.7 },
+  bottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  chevron: { fontSize: 24, color: Colors.primary, fontWeight: '600' },
 });

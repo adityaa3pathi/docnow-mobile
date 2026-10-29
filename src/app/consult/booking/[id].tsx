@@ -11,6 +11,7 @@ import { PatientPrescription } from '@/components/consult/patient-prescription';
 import { PrescriptionTimeline } from '@/components/consult/prescription-timeline';
 import { CheckingNotice, ConfirmingNotice, PaymentStatus } from '@/components/consult/payment-status';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
+import { NotificationPrompt } from '@/components/notifications/notification-prompt';
 import { Colors, Radius } from '@/constants/theme';
 import { useBookingFlow } from '@/hooks/use-booking-flow';
 import { consult } from '@/lib/consult/api';
@@ -34,7 +35,7 @@ function RefundLine({ booking }: { booking: BookingView }) {
 }
 
 export default function BookingScreen() {
-  const { id, pay: payParam } = useLocalSearchParams<{ id: string; pay?: string }>();
+  const { id, pay: payParam, join: joinParam } = useLocalSearchParams<{ id: string; pay?: string; join?: string }>();
   const autoPay = payParam === '1';
   const flow = useBookingFlow(id, true);
   const autoOpened = useRef(false);
@@ -132,7 +133,14 @@ export default function BookingScreen() {
             endsAt={booking.endsAt}
             join={() => consult.join(booking.consultationId)}
             onJoined={(res) => setActiveCall(res)}
+            autoJoin={joinParam === '1'}
           />
+          {booking.status === 'CONFIRMED' || booking.status === 'WAITING' ? (
+            <NotificationPrompt
+              title="Know the moment your doctor joins"
+              body="Turn on notifications for a 10-minute reminder and an alert when your doctor is waiting in the room."
+            />
+          ) : null}
           {booking.status === 'COMPLETED' ? (
             <>
               <PrescriptionTimeline booking={booking} onRefresh={() => void flow.refetch()} />
