@@ -28,3 +28,11 @@ vi.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({ children }: any) => children,
   SafeAreaView: ({ children }: any) => children,
 }));
+
+vi.mock('@livekit/react-native', () => ({
+  useRemoteParticipants: () => [],
+  useRoomContext: () => null,
+  VideoView: () => null,
+  AudioTrack: () => null,
+}));
+
