@@ -47,7 +47,7 @@ const QUICK_CHIPS: Chip[] = [
   { label: 'Diabetes', search: 'Diabetes' },
 ];
 
-const openDoctors = (specialty?: string) => router.push({ pathname: '/(tabs)/doctors', params: specialty ? { specialty } : {} });
+const openDoctors = (specialty?: string) => router.push({ pathname: '/(tabs)/doctors' as any, params: specialty ? { specialty } : {} });
 
 function runChip(chip: Chip, specialties: Specialty[] | undefined) {
   hapticImpact(ImpactFeedbackStyle.Light);
