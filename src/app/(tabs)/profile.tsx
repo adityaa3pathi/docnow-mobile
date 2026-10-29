@@ -1,6 +1,8 @@
 import { router } from 'expo-router';
+import { Trash } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -14,7 +16,11 @@ import { AddressSheet } from '@/components/tests/address-sheet';
 import { PatientSheet } from '@/components/tests/patient-sheet';
 import { Colors, Radius } from '@/constants/theme';
 import { useDoctorMe } from '@/hooks/use-doctor-me';
+import { api, errorMessage } from '@/lib/api';
+import { DELETE_ACCOUNT_MESSAGE, DELETE_ACCOUNT_TITLE } from '@/lib/account';
 import { useAuth } from '@/lib/auth';
+import { hapticNotify, NotificationFeedbackType } from '@/lib/haptics';
+import { clearPushRegistration } from '@/lib/push-registration';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -24,6 +30,31 @@ export default function ProfileScreen() {
 
   const [showPatientSheet, setShowPatientSheet] = useState(false);
   const [showAddressSheet, setShowAddressSheet] = useState(false);
+
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteAccount() {
+    setDeleting(true);
+    try {
+      await api.delete('/api/profile');
+      hapticNotify(NotificationFeedbackType.Success);
+      // The server already dropped this phone's push token; skip the call that would now be refused.
+      await clearPushRegistration();
+      // Signing out clears the saved tokens; the auth guard then shows the login screen.
+      await signOut();
+    } catch (e) {
+      setDeleting(false);
+      hapticNotify(NotificationFeedbackType.Error);
+      Alert.alert('Account not deleted', errorMessage(e, 'We could not delete your account. Please try again.'));
+    }
+  }
+
+  const handleDeleteAccount = () => {
+    Alert.alert(DELETE_ACCOUNT_TITLE, DELETE_ACCOUNT_MESSAGE, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete My Account', style: 'destructive', onPress: () => void deleteAccount() },
+    ]);
+  };
 
   const handleSignOut = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out of DocNow?', [
@@ -155,6 +186,27 @@ export default function ProfileScreen() {
         <Pressable style={styles.logoutBtn} onPress={handleSignOut}>
           <Text style={styles.logoutBtnText}>Log Out</Text>
         </Pressable>
+
+        {/* Danger zone: in-app account deletion (App Store 5.1.1(v)) */}
+        <Text style={styles.sectionHeading}>DANGER ZONE</Text>
+        <View style={[styles.menuGroup, styles.dangerGroup]}>
+          <Pressable
+            testID="delete-account"
+            style={[styles.menuItem, styles.dangerItem]}
+            onPress={handleDeleteAccount}
+            disabled={deleting}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: deleting, busy: deleting }}>
+            <View style={styles.menuLeft}>
+              <Trash size={20} color={Colors.destructive} />
+              <View style={styles.flex}>
+                <Text style={styles.dangerTitle}>Delete Account</Text>
+                <Text style={styles.menuSub}>Permanently close your DocNow account</Text>
+              </View>
+            </View>
+            {deleting ? <ActivityIndicator color={Colors.destructive} /> : null}
+          </Pressable>
+        </View>
 
         <Text style={styles.appVersion}>DocNow Mobile • Version 1.0.0 (SDK 58)</Text>
       </ScrollView>
@@ -307,6 +359,22 @@ const styles = StyleSheet.create({
     color: Colors.destructive,
     fontSize: 15,
     fontWeight: '700',
+  },
+  flex: {
+    flex: 1,
+  },
+  dangerGroup: {
+    borderColor: Colors.destructiveTint,
+  },
+  dangerItem: {
+    borderBottomWidth: 0,
+    minHeight: 56,
+  },
+  dangerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.destructive,
+    marginBottom: 2,
   },
   appVersion: {
     textAlign: 'center',

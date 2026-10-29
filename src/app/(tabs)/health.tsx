@@ -145,7 +145,7 @@ export default function HealthScreen() {
           </Text>
           <Pressable
             style={styles.actionBtn}
-            onPress={() => router.push('/tests/explore')}>
+            onPress={() => router.push({ pathname: '/tests/explore', params: { segment: 'tests' } })}>
             <Text style={styles.actionBtnText}>Explore Lab Tests</Text>
           </Pressable>
         </View>

@@ -3,6 +3,7 @@ import { act, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetPrecallNotesForTests } from '@/hooks/use-precall-notes';
+import { resetTelemedicineConsentForTests } from '@/hooks/use-telemedicine-consent';
 import { consult } from '@/lib/consult/api';
 import { resetServerClockForTests } from '@/lib/consult/time';
 import type { BookingView } from '@/lib/consult/types';
@@ -86,12 +87,14 @@ async function type(id: string, text: string) {
   });
 }
 
-function mount(b: BookingView, onResolved = vi.fn(), onJoined = vi.fn()) {
+const joined = { url: 'wss://x', roomId: 'r', role: 'patient', token: 't' };
+
+function mount(b: BookingView, onResolved = vi.fn(), onJoined = vi.fn(), join = vi.fn(async (_consent: true) => joined)) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const Wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return render(
     <Wrapper>
-      <WaitingRoom booking={b} join={vi.fn(async () => ({ url: 'wss://x', roomId: 'r', role: 'patient', token: 't' }))} onJoined={onJoined} inCall={false} onResolved={onResolved} />
+      <WaitingRoom booking={b} join={join} onJoined={onJoined} inCall={false} onResolved={onResolved} />
     </Wrapper>,
   );
 }
@@ -100,6 +103,7 @@ describe('pre-call waiting room', () => {
   beforeEach(() => {
     storage.clear();
     resetPrecallNotesForTests();
+    resetTelemedicineConsentForTests();
     resetServerClockForTests();
   });
   afterEach(async () => {
@@ -118,8 +122,36 @@ describe('pre-call waiting room', () => {
     expect($('waiting-join')?.textContent).toContain('Room opens at');
 
     await advanceSeconds(123); // now 10:00 before the start
+    await tap('consent-checkbox');
     expect($('waiting-join')?.getAttribute('aria-disabled')).not.toBe('true');
     expect($('waiting-join')?.textContent).toBe('Join Consultation');
+  });
+
+  it('keeps Join locked until the patient gives NMC telemedicine consent, then joins with it', async () => {
+    vi.useFakeTimers({ now: START - 5 * MIN });
+    const join = vi.fn(async (_consent: true) => joined);
+    const onJoined = vi.fn();
+    await mount(booking(), vi.fn(), onJoined, join);
+
+    expect($('consent-card')?.textContent).toContain(
+      'I consent to an online telemedicine video consultation with Dr. Mehta in accordance with the National Medical Commission (NMC) Telemedicine Practice Guidelines.',
+    );
+    expect($('consent-checkbox')?.getAttribute('aria-checked')).toBe('false');
+    expect($('waiting-join')?.getAttribute('aria-disabled')).toBe('true');
+    expect($('consent-required')?.textContent).toBe('Please accept teleconsultation consent to join');
+    await tap('waiting-join');
+    expect(join).not.toHaveBeenCalled();
+
+    await tap('consent-learn-more');
+    await flush();
+    expect($('consent-sheet')?.textContent).toContain('This is not for emergencies.');
+
+    await tap('consent-checkbox');
+    expect($('consent-checkbox')?.getAttribute('aria-checked')).toBe('true');
+    expect($('consent-required')).toBeNull();
+    await tap('waiting-join');
+    await waitFor(() => expect(onJoined).toHaveBeenCalledWith(joined));
+    expect(join).toHaveBeenCalledWith(true);
   });
 
   it('saves the checklist and the questions for the doctor on this phone, per consultation', async () => {
@@ -158,6 +190,7 @@ describe('doctor late resolution', () => {
   beforeEach(() => {
     storage.clear();
     resetPrecallNotesForTests();
+    resetTelemedicineConsentForTests();
     resetServerClockForTests();
   });
   afterEach(async () => {

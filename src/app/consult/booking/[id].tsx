@@ -192,7 +192,7 @@ export default function BookingScreen() {
           {waiting && booking.type !== 'CHAT' ? (
             <WaitingRoom
               booking={booking}
-              join={() => consult.join(booking.consultationId)}
+              join={(consent) => consult.join(booking.consultationId, consent)}
               onJoined={(res) => setActiveCall(res)}
               inCall={inCall}
               autoJoin={joinParam === '1'}
@@ -204,9 +204,11 @@ export default function BookingScreen() {
               type={booking.type}
               startsAt={booking.startsAt}
               endsAt={booking.endsAt}
-              join={() => consult.join(booking.consultationId)}
+              join={(consent) => consult.join(booking.consultationId, consent)}
               onJoined={(res) => setActiveCall(res)}
               autoJoin={joinParam === '1'}
+              consultationId={booking.consultationId}
+              doctorName={booking.doctorName}
             />
           )}
           {booking.status === 'CONFIRMED' || booking.status === 'WAITING' ? (

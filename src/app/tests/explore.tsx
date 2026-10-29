@@ -1,9 +1,11 @@
+import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,15 +13,29 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DoctorCard } from '@/components/consult/doctor-card';
+import { SpecialtyChips } from '@/components/consult/specialty-chips';
+import { LoadingBlock } from '@/components/consult/states';
 import { EmptyState, ErrorRetryState } from '@/components/tests/empty-state';
 import { TestCardSkeleton } from '@/components/tests/test-card-skeleton';
 import { AccreditationBanner } from '@/components/tests/trust-badges';
 import { Colors, Radius } from '@/constants/theme';
+import { consult } from '@/lib/consult/api';
+import { searchDoctors } from '@/lib/consult/doctorSearch';
 import { formatRupees } from '@/lib/consult/format';
 import { hapticImpact, ImpactFeedbackStyle } from '@/lib/haptics';
 import { catalogApi } from '@/lib/tests/api';
 import { useCart } from '@/lib/tests/cart-context';
 import type { CatalogCategory, CatalogItem } from '@/lib/tests/types';
+
+type Segment = 'all' | 'doctors' | 'tests';
+const SEGMENTS: { label: string; value: Segment }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Doctors', value: 'doctors' },
+  { label: 'Lab Tests', value: 'tests' },
+];
+/** How many doctors "All" shows before "View all". */
+const ALL_DOCTORS_PREVIEW = 3;
 
 const TYPES = [
   { label: 'All', value: '' },
@@ -31,9 +47,12 @@ const TYPES = [
 export default function ExploreTestsScreen() {
   const insets = useSafeAreaInsets();
   const { cartCount, addToCart, getItemCount } = useCart();
-  // Home's quick chips ("Full Body Checkup", "Diabetes") open this screen pre-searched.
-  const { q } = useLocalSearchParams<{ q?: string }>();
-  const [search, setSearch] = useState(q ?? '');
+  // Home's quick chips ("Full Body Checkup", "Diabetes") open this screen pre-searched; lab-test
+  // screens open it on the Lab Tests segment.
+  const params = useLocalSearchParams<{ q?: string; segment?: string }>();
+  const [search, setSearch] = useState(params.q ?? '');
+  const [segment, setSegment] = useState<Segment>(params.segment === 'doctors' || params.segment === 'tests' ? params.segment : 'all');
+  const [specialtyId, setSpecialtyId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
 
@@ -43,6 +62,14 @@ export default function ExploreTestsScreen() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [addingCode, setAddingCode] = useState<string | null>(null);
+
+  const doctors = useQuery({ queryKey: ['consult', 'doctors', null], queryFn: () => consult.doctors() });
+  const specialties = useQuery({ queryKey: ['consult', 'specialties'], queryFn: consult.specialties });
+  const matchedDoctors = searchDoctors(doctors.data ?? [], search, segment === 'doctors' ? specialtyId : null);
+
+  // Type and category filters belong to the Lab Tests segment; "All" searches the whole catalog.
+  const productType = segment === 'tests' ? selectedType : '';
+  const productCategory = segment === 'tests' ? selectedCategory : '';
 
   // Load categories
   useEffect(() => {
@@ -58,8 +85,8 @@ export default function ExploreTestsScreen() {
         setLoadFailed(false);
         const res = await catalogApi.products({
           search: search.trim() || undefined,
-          type: selectedType || undefined,
-          category: selectedCategory || undefined,
+          type: productType || undefined,
+          category: productCategory || undefined,
           limit: 30,
         });
         if (!cancelled) {
@@ -79,7 +106,7 @@ export default function ExploreTestsScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [search, selectedType, selectedCategory, reloadKey]);
+  }, [search, productType, productCategory, reloadKey]);
 
   const handleAddToCart = async (item: CatalogItem) => {
     hapticImpact(ImpactFeedbackStyle.Medium);
@@ -101,6 +128,8 @@ export default function ExploreTestsScreen() {
 
     return (
       <Pressable
+        key={item.id}
+        testID={`product-${item.partnerCode}`}
         style={styles.card}
         onPress={() => router.push({ pathname: '/tests/[code]', params: { code: item.partnerCode } })}>
         <View style={styles.cardHeader}>
@@ -147,6 +176,7 @@ export default function ExploreTestsScreen() {
                 <Text style={styles.addedBadgeText}>✓ Added{count > 1 ? ` (${count})` : ''}</Text>
               </View>
               <Pressable
+                testID={`product-add-${item.partnerCode}`}
                 style={[styles.addFamilyBtn, isAdding && styles.addBtnDisabled]}
                 disabled={isAdding}
                 hitSlop={5}
@@ -160,6 +190,7 @@ export default function ExploreTestsScreen() {
             </View>
           ) : (
             <Pressable
+              testID={`product-add-${item.partnerCode}`}
               style={[styles.addBtn, isAdding && styles.addBtnDisabled]}
               disabled={isAdding}
               onPress={() => handleAddToCart(item)}>
@@ -182,7 +213,7 @@ export default function ExploreTestsScreen() {
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
           <Text style={styles.backBtnText}>‹</Text>
         </Pressable>
-        <Text style={styles.headerTitle}>Lab Tests & Packages</Text>
+        <Text style={styles.headerTitle}>Search</Text>
         <Pressable
           onPress={() => router.push('/(tabs)/tests')}
           hitSlop={10}
@@ -199,87 +230,201 @@ export default function ExploreTestsScreen() {
       {/* Search Input */}
       <View style={styles.searchBox}>
         <TextInput
+          testID="search-input"
           style={styles.searchInput}
-          placeholder="Search by test name, illness, or organ..."
+          placeholder={segment === 'tests' ? 'Search by test name, illness, or organ...' : 'Search doctors, specialties, symptoms or tests'}
           placeholderTextColor={Colors.mutedForeground}
           value={search}
           onChangeText={setSearch}
           clearButtonMode="while-editing"
+          accessibilityLabel="Search"
         />
       </View>
 
-      {/* Type Filter Pills */}
-      <View style={styles.typeRow}>
-        {TYPES.map((t) => {
-          const isActive = selectedType === t.value;
+      <View style={styles.segmentRow} accessibilityRole="tablist">
+        {SEGMENTS.map((sg) => {
+          const active = segment === sg.value;
           return (
             <Pressable
-              key={t.value}
-              onPress={() => setSelectedType(t.value)}
-              style={[styles.typePill, isActive && styles.typePillActive]}>
-              <Text style={[styles.typePillText, isActive && styles.typePillTextActive]}>{t.label}</Text>
+              key={sg.value}
+              testID={`segment-${sg.value}`}
+              onPress={() => setSegment(sg.value)}
+              style={[styles.segment, active && styles.segmentActive]}
+              accessibilityRole="tab"
+              aria-selected={active}
+              accessibilityState={{ selected: active }}>
+              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{sg.label}</Text>
             </Pressable>
           );
         })}
       </View>
 
-      {/* Category Horizontal Filter */}
-      {categories.length > 0 && (
-        <View style={styles.catWrap}>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={[{ id: 'all', name: 'All Categories', slug: '' }, ...categories]}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => {
-              const isActive = selectedCategory === item.slug;
-              return (
-                <Pressable
-                  onPress={() => setSelectedCategory(item.slug)}
-                  style={[styles.catPill, isActive && styles.catPillActive]}>
-                  <Text style={[styles.catPillText, isActive && styles.catPillTextActive]}>
-                    {item.name}
-                  </Text>
-                </Pressable>
-              );
+      {segment === 'tests' ? (
+        <>
+        {/* Type Filter Pills */}
+        <View style={styles.typeRow}>
+          {TYPES.map((t) => {
+            const isActive = selectedType === t.value;
+            return (
+              <Pressable
+                key={t.value}
+                onPress={() => setSelectedType(t.value)}
+                style={[styles.typePill, isActive && styles.typePillActive]}>
+                <Text style={[styles.typePillText, isActive && styles.typePillTextActive]}>{t.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Category Horizontal Filter */}
+        {categories.length > 0 && (
+          <View style={styles.catWrap}>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={[{ id: 'all', name: 'All Categories', slug: '' }, ...categories]}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => {
+                const isActive = selectedCategory === item.slug;
+                return (
+                  <Pressable
+                    onPress={() => setSelectedCategory(item.slug)}
+                    style={[styles.catPill, isActive && styles.catPillActive]}>
+                    <Text style={[styles.catPillText, isActive && styles.catPillTextActive]}>
+                      {item.name}
+                    </Text>
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        )}
+
+        <AccreditationBanner />
+
+        {/* Product List */}
+        {loading ? (
+          <View style={styles.listContent}>
+            {[0, 1, 2, 3].map((i) => (
+              <TestCardSkeleton key={i} />
+            ))}
+          </View>
+        ) : loadFailed ? (
+          <ErrorRetryState
+            title="Couldn’t load lab tests"
+            onRetry={() => setReloadKey((k) => k + 1)}
+          />
+        ) : products.length === 0 ? (
+          <EmptyState
+            icon="🔍"
+            title="No tests matching your query"
+            subtitle="Try checking for generic test names like CBC, Thyroid, or Vitamin D"
+            actionLabel="Clear Filters"
+            onAction={() => {
+              setSearch('');
+              setSelectedType('');
+              setSelectedCategory('');
             }}
           />
-        </View>
-      )}
-
-      <AccreditationBanner />
-
-      {/* Product List */}
-      {loading ? (
-        <View style={styles.listContent}>
-          {[0, 1, 2, 3].map((i) => (
-            <TestCardSkeleton key={i} />
-          ))}
-        </View>
-      ) : loadFailed ? (
-        <ErrorRetryState
-          title="Couldn’t load lab tests"
-          onRetry={() => setReloadKey((k) => k + 1)}
-        />
-      ) : products.length === 0 ? (
-        <EmptyState
-          icon="🔍"
-          title="No tests matching your query"
-          subtitle="Try checking for generic test names like CBC, Thyroid, or Vitamin D"
-          actionLabel="Clear Filters"
-          onAction={() => {
-            setSearch('');
-            setSelectedType('');
-            setSelectedCategory('');
-          }}
+        ) : (
+          <FlatList
+            data={products}
+            keyExtractor={(item) => item.id}
+            renderItem={renderProduct}
+            contentContainerStyle={styles.listContent}
+          />
+        )}
+        </>
+      ) : segment === 'doctors' ? (
+        <FlatList
+          data={doctors.isLoading || doctors.error ? [] : matchedDoctors}
+          keyExtractor={(d) => d.id}
+          contentContainerStyle={styles.listContent}
+          ListHeaderComponent={
+            <View style={styles.doctorsHead}>
+              {specialties.data && specialties.data.length > 0 ? (
+                <View style={styles.bleed}>
+                  <SpecialtyChips specialties={specialties.data} value={specialtyId} onChange={setSpecialtyId} />
+                </View>
+              ) : null}
+              {matchedDoctors.length > 0 ? (
+                <Text style={styles.sectionTitle} testID="section-doctors">Doctors ({matchedDoctors.length})</Text>
+              ) : null}
+            </View>
+          }
+          renderItem={({ item }) => (
+            <View style={styles.doctorWrap} testID={`search-doctor-${item.id}`}>
+              <DoctorCard doctor={item} />
+            </View>
+          )}
+          ListEmptyComponent={
+            doctors.isLoading ? (
+              <LoadingBlock label="Loading verified doctors..." />
+            ) : doctors.error ? (
+              <ErrorRetryState title="Couldn’t load doctors" onRetry={() => void doctors.refetch()} />
+            ) : (
+              <EmptyState
+              icon="🩺"
+              title="No doctors match your search"
+              subtitle="Try a specialty like Dermatology, or a symptom like fever or acne"
+              actionLabel={specialtyId ? 'Show all specialties' : 'Clear search'}
+              onAction={() => (specialtyId ? setSpecialtyId(null) : setSearch(''))}
+            />
+            )
+          }
         />
       ) : (
-        <FlatList
-          data={products}
-          keyExtractor={(item) => item.id}
-          renderItem={renderProduct}
-          contentContainerStyle={styles.listContent}
-        />
+        <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
+          {matchedDoctors.length > 0 ? (
+            <View style={styles.section}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle} testID="section-doctors">Doctors ({matchedDoctors.length})</Text>
+                {matchedDoctors.length > ALL_DOCTORS_PREVIEW ? (
+                  <Pressable testID="view-all-doctors" onPress={() => setSegment('doctors')} hitSlop={8} accessibilityRole="button">
+                    <Text style={styles.viewAll}>View all ›</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              {matchedDoctors.slice(0, ALL_DOCTORS_PREVIEW).map((d) => (
+                <View key={d.id} style={styles.doctorWrap} testID={`search-doctor-${d.id}`}>
+                  <DoctorCard doctor={d} />
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {loading ? (
+            <View style={styles.section}>
+              {[0, 1].map((i) => (
+                <TestCardSkeleton key={i} />
+              ))}
+            </View>
+          ) : products.length > 0 ? (
+            <View style={styles.section}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle} testID="section-tests">Lab Tests & Packages ({products.length})</Text>
+                <Pressable testID="view-all-tests" onPress={() => setSegment('tests')} hitSlop={8} accessibilityRole="button">
+                  <Text style={styles.viewAll}>Filters ›</Text>
+                </Pressable>
+              </View>
+              {products.map((item) => renderProduct({ item }))}
+            </View>
+          ) : null}
+
+          {!loading && !doctors.isLoading && products.length === 0 && matchedDoctors.length === 0 ? (
+            loadFailed ? (
+              <ErrorRetryState title="Couldn’t load results" onRetry={() => setReloadKey((k) => k + 1)} />
+            ) : (
+              <EmptyState
+                icon="🔍"
+                title={search.trim() ? `No results for “${search.trim()}”` : 'Nothing to show yet'}
+                subtitle="Try a doctor’s name, a specialty, a symptom like fever, or a test like CBC or Thyroid"
+                actionLabel="Clear Search"
+                onAction={() => setSearch('')}
+              />
+            )
+          ) : null}
+        </ScrollView>
       )}
 
       {/* Floating Bottom Cart Bar */}
@@ -301,6 +446,68 @@ export default function ExploreTestsScreen() {
 }
 
 const styles = StyleSheet.create({
+  segmentRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 4,
+    gap: 4,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.cardMuted,
+  },
+  segment: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.md,
+  },
+  segmentActive: {
+    backgroundColor: Colors.card,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.mutedForeground,
+  },
+  segmentTextActive: {
+    color: Colors.primary,
+    fontWeight: '800',
+  },
+  section: {
+    marginBottom: 12,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.foreground,
+  },
+  viewAll: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.primary,
+  },
+  doctorsHead: {
+    gap: 12,
+    marginBottom: 12,
+  },
+  bleed: {
+    marginHorizontal: -16,
+  },
+  doctorWrap: {
+    marginBottom: 12,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,

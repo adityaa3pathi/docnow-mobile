@@ -252,7 +252,7 @@ export default function TestBookingsScreen() {
           </Text>
           <Pressable
             style={styles.bookBtn}
-            onPress={() => router.push('/tests/explore')}>
+            onPress={() => router.push({ pathname: '/tests/explore', params: { segment: 'tests' } })}>
             <Text style={styles.bookBtnText}>Explore Tests & Packages</Text>
           </Pressable>
         </View>

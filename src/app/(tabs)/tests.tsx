@@ -165,7 +165,7 @@ export default function TestsCartScreen() {
             title="Your diagnostic cart is empty"
             subtitle="Save up to 70% on preventive health checkups with free certified home collection."
             actionLabel="Browse Tests & Health Packages"
-            onAction={() => router.push('/tests/explore')}
+            onAction={() => router.push({ pathname: '/tests/explore', params: { segment: 'tests' } })}
             secondaryLabel="Consult a Doctor First ›"
             onSecondaryAction={() => router.push('/(tabs)')}
             style={styles.emptyStateFill}
@@ -220,7 +220,7 @@ export default function TestsCartScreen() {
 
                 <Pressable
                   style={styles.addMoreBtn}
-                  onPress={() => router.push('/tests/explore')}>
+                  onPress={() => router.push({ pathname: '/tests/explore', params: { segment: 'tests' } })}>
                   <Text style={styles.addMoreText}>+ Add More Tests</Text>
                 </Pressable>
               </View>

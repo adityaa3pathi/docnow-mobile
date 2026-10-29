@@ -2,6 +2,7 @@
 import { isAxiosError } from 'axios';
 
 import { api, errorMessage } from '@/lib/api';
+import { CONSENT_VERSION } from './consent';
 import type {
     AvailabilityWindow, BookingView, CancelPreview, CancelResult, CartAddResult, ConsultNote, ConsultationStatus,
     ConsultAttachment, CreateBookingInput, CreateBookingResponse, DoctorConsultationPage, GuestInfo, DoctorConsultationRecord, DoctorMe, DoctorProfileInput,
@@ -61,7 +62,7 @@ export const consult = {
         post<VerifyResponse>(`/api/consult/bookings/${id}/verify`, body),
     cancelPreview: (id: string) => get<CancelPreview>(`/api/consult/bookings/${id}/cancel-preview`),
     cancel: (id: string, reason?: string) => post<CancelResult>(`/api/consult/bookings/${id}/cancel`, { reason }),
-    join: (id: string) => post<JoinResponse>(`/api/consult/bookings/${id}/join`),
+    join: (id: string, consent: true) => post<JoinResponse>(`/api/consult/bookings/${id}/join`, { consent, consentVersion: CONSENT_VERSION, channel: 'app' }),
     prescription: (id: string) => get<Prescription>(`/api/consult/bookings/${id}/prescription`),
     prescriptionPdfUrl: (id: string) => `${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/consult/bookings/${id}/prescription.pdf`,
     /** A signed link that opens the PDF without sign-in headers (in-app browser, sharing). */
@@ -74,7 +75,9 @@ export const consult = {
     declineFamily: (patientId: string) => post<{ patientId: string; linked: boolean }>(`/api/consult/family/${patientId}/decline`),
     // Zero-login join (docnow.in/call/<token>): works signed in or not.
     guestInfo: (token: string) => get<GuestInfo>(`/api/consult/guest/${encodeURIComponent(token)}`),
-    guestJoin: (token: string) => post<JoinResponse>(`/api/consult/guest/${encodeURIComponent(token)}/join`),
+    /** `consent` is the NMC teleconsultation checkbox; the server refuses the join without it. */
+    guestJoin: (token: string, consent: true) =>
+        post<JoinResponse>(`/api/consult/guest/${encodeURIComponent(token)}/join`, { consent, consentVersion: CONSENT_VERSION }),
     /** Uploads one photo / PDF of an outside record; book with its id in `attachmentIds`. */
     uploadAttachment: (file: { uri: string; name: string; mimeType: string }) => {
         const form = new FormData();

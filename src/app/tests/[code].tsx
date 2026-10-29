@@ -88,7 +88,7 @@ export default function TestDetailScreen() {
             title="Test not found"
             subtitle="This test may have been discontinued or is unavailable right now."
             actionLabel="Browse All Tests"
-            onAction={() => router.replace('/tests/explore')}
+            onAction={() => router.replace({ pathname: '/tests/explore', params: { segment: 'tests' } })}
             secondaryLabel="Go Back"
             onSecondaryAction={() => router.back()}
           />

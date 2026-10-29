@@ -5,8 +5,10 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CallRoomView } from '@/components/consult/call-room-view';
+import { TelemedicineConsent } from '@/components/consult/telemedicine-consent';
 import { Colors, Radius } from '@/constants/theme';
 import { consult, errorStatus, friendlyError } from '@/lib/consult/api';
+import { GUEST_CONSENT_REQUIRED_HINT, GUEST_CONSENT_TEXT } from '@/lib/consult/consent';
 import { guestCopy } from '@/lib/consult/family';
 import { formatIstDateTime, formatIstTime } from '@/lib/consult/time';
 import type { GuestInfo, JoinResponse } from '@/lib/consult/types';
@@ -27,6 +29,7 @@ export default function GuestCallScreen() {
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [call, setCall] = useState<JoinResponse | null>(null);
+  const [consented, setConsented] = useState(false);
   const announced = useRef(false);
 
   const load = useCallback(async () => {
@@ -53,10 +56,11 @@ export default function GuestCallScreen() {
   }, [load]);
 
   async function start() {
+    if (!consented) return;
     setJoining(true);
     setJoinError(null);
     try {
-      setCall(await consult.guestJoin(token));
+      setCall(await consult.guestJoin(token, true));
     } catch (e) {
       setJoinError(friendlyError(e, 'We could not start the call. Please check your internet and try again.'));
       void load();
@@ -127,10 +131,12 @@ export default function GuestCallScreen() {
         </View>
       ) : null}
 
+      <TelemedicineConsent checked={consented} onChange={setConsented} label={GUEST_CONSENT_TEXT} senior language={lang ?? info.language} />
+
       <Pressable
         testID="guest-start"
-        style={[styles.start, (!open || joining) && styles.dim]}
-        disabled={!open || joining}
+        style={[styles.start, (!open || joining || !consented) && styles.dim]}
+        disabled={!open || joining || !consented}
         onPress={() => void start()}
         accessibilityRole="button"
         accessibilityLabel={`${copy.primary.start} (${copy.secondary.start})`}>
@@ -140,6 +146,7 @@ export default function GuestCallScreen() {
           <Text style={styles.startText}>📞 {copy.primary.start} ({copy.secondary.start})</Text>
         )}
       </Pressable>
+      {open && !consented ? <Text style={styles.body}>{GUEST_CONSENT_REQUIRED_HINT}</Text> : null}
       {!open ? <Text style={styles.body}>{copy.primary.early} · {formatIstTime(info.opensAt)}</Text> : null}
       {joinError ? <Text style={styles.error} accessibilityRole="alert">{joinError}</Text> : null}
       <Text style={styles.body}>{copy.primary.allow}</Text>

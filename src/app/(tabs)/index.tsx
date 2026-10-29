@@ -186,9 +186,9 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.search, pressed && styles.pressed]}
             onPress={() => router.push('/tests/explore')}
             accessibilityRole="search"
-            accessibilityLabel="Search lab tests and health packages">
+            accessibilityLabel="Search doctors, symptoms and lab tests">
             <Search size={20} color={Colors.primary} strokeWidth={2.4} />
-            <Text style={styles.searchText} numberOfLines={1}>Search lab tests & health packages</Text>
+            <Text style={styles.searchText} numberOfLines={1}>Search doctors, symptoms & lab tests</Text>
           </Pressable>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
@@ -234,7 +234,7 @@ export default function HomeScreen() {
           <Pressable
             testID="service-tests"
             style={({ pressed }) => [styles.serviceWrap, pressed && styles.pressed]}
-            onPress={() => router.push('/tests/explore')}
+            onPress={() => router.push({ pathname: '/tests/explore', params: { segment: 'tests' } })}
             accessibilityRole="button"
             accessibilityLabel="Lab tests with home sample pickup">
             <View style={[styles.service, styles.serviceLight, Shadow.card]}>
@@ -271,7 +271,7 @@ export default function HomeScreen() {
 
         {packages.data && packages.data.length > 0 ? (
           <View style={styles.section}>
-            <SectionHeader title="Popular Health Packages" action="View all" onAction={() => router.push('/tests/explore')} />
+            <SectionHeader title="Popular Health Packages" action="View all" onAction={() => router.push({ pathname: '/tests/explore', params: { segment: 'tests' } })} />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
               {packages.data.map((p) => (
                 <PackageCard key={p.id} item={p} />

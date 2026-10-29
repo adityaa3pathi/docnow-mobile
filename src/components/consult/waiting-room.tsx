@@ -8,8 +8,10 @@ import { ProgressRing } from '@/components/ui/progress-ring';
 import { PulseDot } from '@/components/ui/pulse-dot';
 import { Colors, PrimaryGradient, Radius, Shadow, Type } from '@/constants/theme';
 import { usePrecallNotes } from '@/hooks/use-precall-notes';
+import { useTelemedicineConsent } from '@/hooks/use-telemedicine-consent';
 import { useServerNow } from '@/hooks/use-server-now';
 import { friendlyError } from '@/lib/consult/api';
+import { CONSENT_REQUIRED_HINT, consentText } from '@/lib/consult/consent';
 import { joinWindow } from '@/lib/consult/room';
 import { formatIstTime } from '@/lib/consult/time';
 import type { BookingView, JoinResponse } from '@/lib/consult/types';
@@ -18,10 +20,12 @@ import { hapticImpact, hapticNotify, ImpactFeedbackStyle, NotificationFeedbackTy
 import { DoctorDelayCard, type DelayOutcome } from './doctor-delay-card';
 import { QuestionsNotepad } from './questions-notepad';
 import { TechCheck } from './tech-check';
+import { TelemedicineConsent } from './telemedicine-consent';
 
 interface Props {
   booking: BookingView;
-  join: () => Promise<JoinResponse>;
+  /** Called only after the NMC consent box is ticked. */
+  join: (consent: true) => Promise<JoinResponse>;
   onJoined: (res: JoinResponse) => void;
   /** The call is open over this screen: the camera preview must let go of the camera. */
   inCall: boolean;
@@ -53,17 +57,19 @@ export function WaitingRoom({ booking, join, onJoined, inCall, autoJoin = false,
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const autoJoined = useRef(false);
+  const [consented, setConsented] = useTelemedicineConsent(booking.consultationId);
 
   const win = joinWindow({ status: booking.status, startsAt: booking.startsAt, endsAt: booking.endsAt }, now);
   const doctorIn = !!booking.doctorJoined;
   const delay = doctorDelay(booking, doctorIn, now);
 
   async function start() {
+    if (!consented) return;
     hapticImpact(ImpactFeedbackStyle.Medium);
     setJoining(true);
     setJoinError(null);
     try {
-      onJoined(await join());
+      onJoined(await join(true));
     } catch (e) {
       hapticNotify(NotificationFeedbackType.Error);
       setJoinError(friendlyError(e));
@@ -77,11 +83,12 @@ export function WaitingRoom({ booking, join, onJoined, inCall, autoJoin = false,
     void start();
   });
   const open = win.kind === 'open';
+  // A "doctor is waiting" notification joins by itself only once consent was given; never around it.
   useEffect(() => {
-    if (!autoJoin || !open || autoJoined.current) return;
+    if (!autoJoin || !open || !consented || autoJoined.current) return;
     const t = setTimeout(autoStart, 0);
     return () => clearTimeout(t);
-  }, [autoJoin, open]);
+  }, [autoJoin, open, consented]);
 
   const done = notes.checked.length;
   const left = timeLeft(booking.startsAt, now);
@@ -140,20 +147,23 @@ export function WaitingRoom({ booking, join, onJoined, inCall, autoJoin = false,
 
       {delay ? <DoctorDelayCard booking={booking} delay={delay} onResolved={onResolved} /> : null}
 
+      <TelemedicineConsent checked={consented} onChange={setConsented} label={consentText(booking.doctorName)} />
+
       <Pressable
         testID="waiting-join"
-        style={[styles.join, (!open || joining) && styles.dim]}
-        disabled={!open || joining}
+        style={[styles.join, (!open || joining || !consented) && styles.dim]}
+        disabled={!open || joining || !consented}
         onPress={() => void start()}
         accessibilityRole="button"
         accessibilityLabel={open ? 'Join consultation' : 'Join consultation, not open yet'}
-        accessibilityState={{ disabled: !open || joining, busy: joining }}>
+        accessibilityState={{ disabled: !open || joining || !consented, busy: joining }}>
         {joining ? (
           <ActivityIndicator color={Colors.primaryForeground} />
         ) : (
           <Text style={styles.joinText}>{open ? 'Join Consultation' : win.kind === 'early' ? `Room opens at ${formatIstTime(win.opensAt)}` : 'Join Consultation'}</Text>
         )}
       </Pressable>
+      {open && !consented ? <Text style={styles.consentHint} testID="consent-required">{CONSENT_REQUIRED_HINT}</Text> : null}
       {joinError ? <Text style={styles.error} accessibilityRole="alert">{joinError}</Text> : null}
 
       <TechCheck paused={inCall} />
@@ -216,6 +226,7 @@ const styles = StyleSheet.create({
   joinText: { color: Colors.primaryForeground, fontWeight: '800', fontSize: 16 },
   dim: { opacity: 0.55 },
   error: { color: Colors.destructive, fontWeight: '600', fontSize: 13 },
+  consentHint: { marginTop: -6, textAlign: 'center', fontSize: Type.caption, fontWeight: '600', color: Colors.mutedForeground },
   card: { gap: 10, padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.foreground },
