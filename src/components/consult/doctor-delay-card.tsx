@@ -146,6 +146,9 @@ export function DoctorDelayCard({ booking, delay, onResolved, onDark = false }: 
   const [error, setError] = useState<string | null>(null);
   const dr = `Dr. ${booking.doctorName}`;
   const elapsed = formatMmSs(delay.elapsedSeconds);
+  // Rescheduling, switching doctor and refunds are the booker's (the server refuses them for family).
+  const canResolve = !booking.isBookedForYou;
+  const booker = booking.bookedBy?.name?.split(/\s+/)[0] ?? 'your family member';
   const offer = step.kind === 'reassign' ? step.option : null;
 
   async function findDoctor() {
@@ -248,87 +251,95 @@ export function DoctorDelayCard({ booking, delay, onResolved, onDark = false }: 
         </View>
       </Pressable>
 
-      <Pressable
-        testID="delay-reschedule"
-        style={styles.option}
-        onPress={() => {
-          hapticImpact(ImpactFeedbackStyle.Light);
-          setSheetOpen(true);
-        }}
-        accessibilityRole="button">
-        <Text style={styles.optionIcon}>📅</Text>
-        <View style={styles.flex}>
-          <Text style={styles.optionTitle}>Reschedule for Free</Text>
-          <Text style={styles.optionSub}>Pick another time with {dr}. No extra payment.</Text>
-        </View>
-      </Pressable>
+      {canResolve ? (
+        <>
+        <Pressable
+          testID="delay-reschedule"
+          style={styles.option}
+          onPress={() => {
+            hapticImpact(ImpactFeedbackStyle.Light);
+            setSheetOpen(true);
+          }}
+          accessibilityRole="button">
+          <Text style={styles.optionIcon}>📅</Text>
+          <View style={styles.flex}>
+            <Text style={styles.optionTitle}>Reschedule for Free</Text>
+            <Text style={styles.optionSub}>Pick another time with {dr}. No extra payment.</Text>
+          </View>
+        </Pressable>
 
-      <Pressable
-        testID="delay-reassign"
-        style={styles.option}
-        disabled={step.kind === 'reassign-loading'}
-        onPress={() => void findDoctor()}
-        accessibilityRole="button">
-        <Text style={styles.optionIcon}>🩺</Text>
-        <View style={styles.flex}>
-          <Text style={styles.optionTitle}>Consult Next Available Doctor</Text>
-          <Text style={styles.optionSub}>Another {booking.specialty} doctor free within the hour, at no extra cost.</Text>
-        </View>
-        {step.kind === 'reassign-loading' ? <ActivityIndicator color={Colors.primary} /> : null}
-      </Pressable>
-      {step.kind === 'reassign' ? (
-        offer ? (
-          <View style={styles.confirmBox} testID="reassign-offer">
-            <Text style={styles.confirmTitle}>Dr. {offer.doctor.displayName}</Text>
-            <Text style={styles.muted}>
-              {[offer.doctor.qualification, `${offer.doctor.experienceYears} yrs`, offer.doctor.specialty].join(' · ')}
+        <Pressable
+          testID="delay-reassign"
+          style={styles.option}
+          disabled={step.kind === 'reassign-loading'}
+          onPress={() => void findDoctor()}
+          accessibilityRole="button">
+          <Text style={styles.optionIcon}>🩺</Text>
+          <View style={styles.flex}>
+            <Text style={styles.optionTitle}>Consult Next Available Doctor</Text>
+            <Text style={styles.optionSub}>Another {booking.specialty} doctor free within the hour, at no extra cost.</Text>
+          </View>
+          {step.kind === 'reassign-loading' ? <ActivityIndicator color={Colors.primary} /> : null}
+        </Pressable>
+        {step.kind === 'reassign' ? (
+          offer ? (
+            <View style={styles.confirmBox} testID="reassign-offer">
+              <Text style={styles.confirmTitle}>Dr. {offer.doctor.displayName}</Text>
+              <Text style={styles.muted}>
+                {[offer.doctor.qualification, `${offer.doctor.experienceYears} yrs`, offer.doctor.specialty].join(' · ')}
+              </Text>
+              <Text style={styles.body}>Can see you at {formatIstTime(offer.slot.startsAt)} (Indian time).</Text>
+              <Pressable
+                testID="reassign-confirm"
+                style={[styles.primary, busy && styles.dim]}
+                disabled={busy}
+                onPress={() => void switchDoctor(offer)}
+                accessibilityRole="button">
+                {busy ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.primaryText}>Switch to Dr. {offer.doctor.displayName}</Text>}
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={styles.muted} testID="reassign-none">
+              No other {booking.specialty} doctor is free in the next hour. You can reschedule for free or take a full refund.
             </Text>
-            <Text style={styles.body}>Can see you at {formatIstTime(offer.slot.startsAt)} (Indian time).</Text>
-            <Pressable
-              testID="reassign-confirm"
-              style={[styles.primary, busy && styles.dim]}
-              disabled={busy}
-              onPress={() => void switchDoctor(offer)}
-              accessibilityRole="button">
-              {busy ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.primaryText}>Switch to Dr. {offer.doctor.displayName}</Text>}
-            </Pressable>
-          </View>
-        ) : (
-          <Text style={styles.muted} testID="reassign-none">
-            No other {booking.specialty} doctor is free in the next hour. You can reschedule for free or take a full refund.
-          </Text>
-        )
-      ) : null}
+          )
+        ) : null}
 
-      <Pressable
-        testID="delay-refund"
-        style={[styles.option, styles.optionRefund]}
-        onPress={() => setStep({ kind: 'refund-confirm' })}
-        accessibilityRole="button">
-        <Text style={styles.optionIcon}>↩️</Text>
-        <View style={styles.flex}>
-          <Text style={styles.optionTitle}>Request Instant 100% Refund</Text>
-          <Text style={styles.optionSub}>Cancel and get {formatPaise(booking.amountPaise)} back to your original payment method.</Text>
-        </View>
-      </Pressable>
-      {step.kind === 'refund-confirm' ? (
-        <View style={styles.confirmBox} testID="refund-confirm-box">
-          <Text style={styles.body}>Cancel this consultation and refund {formatPaise(booking.amountPaise)} in full?</Text>
-          <View style={styles.rowGap}>
-            <Pressable style={styles.secondary} onPress={() => setStep({ kind: 'options' })} accessibilityRole="button">
-              <Text style={styles.secondaryText}>Keep booking</Text>
-            </Pressable>
-            <Pressable
-              testID="delay-refund-confirm"
-              style={[styles.danger, busy && styles.dim]}
-              disabled={busy}
-              onPress={() => void refund()}
-              accessibilityRole="button">
-              {busy ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.primaryText}>Cancel & refund</Text>}
-            </Pressable>
+        <Pressable
+          testID="delay-refund"
+          style={[styles.option, styles.optionRefund]}
+          onPress={() => setStep({ kind: 'refund-confirm' })}
+          accessibilityRole="button">
+          <Text style={styles.optionIcon}>↩️</Text>
+          <View style={styles.flex}>
+            <Text style={styles.optionTitle}>Request Instant 100% Refund</Text>
+            <Text style={styles.optionSub}>Cancel and get {formatPaise(booking.amountPaise)} back to your original payment method.</Text>
           </View>
-        </View>
-      ) : null}
+        </Pressable>
+        {step.kind === 'refund-confirm' ? (
+          <View style={styles.confirmBox} testID="refund-confirm-box">
+            <Text style={styles.body}>Cancel this consultation and refund {formatPaise(booking.amountPaise)} in full?</Text>
+            <View style={styles.rowGap}>
+              <Pressable style={styles.secondary} onPress={() => setStep({ kind: 'options' })} accessibilityRole="button">
+                <Text style={styles.secondaryText}>Keep booking</Text>
+              </Pressable>
+              <Pressable
+                testID="delay-refund-confirm"
+                style={[styles.danger, busy && styles.dim]}
+                disabled={busy}
+                onPress={() => void refund()}
+                accessibilityRole="button">
+                {busy ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.primaryText}>Cancel & refund</Text>}
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+        </>
+      ) : (
+        <Text style={styles.muted} testID="delay-family-note">
+          {booker} booked this consultation and can reschedule it, switch doctor or get a full refund from their phone.
+        </Text>
+      )}
 
       <RescheduleSheet
         booking={booking}

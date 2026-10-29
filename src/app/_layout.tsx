@@ -50,6 +50,8 @@ function Routes() {
         <Stack.Protected guard={!user}>
           <Stack.Screen name="login" />
         </Stack.Protected>
+        {/* Family call links work signed in or not: the link itself is the invitation. */}
+        <Stack.Screen name="call/[token]" />
       </Stack>
       <NotificationToast toast={notifications.toast} onOpen={notifications.openToast} onDismiss={notifications.dismissToast} />
     </>

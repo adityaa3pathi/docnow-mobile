@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 
 import { BookingSummary } from '@/components/consult/booking-summary';
 import { CallRoomView } from '@/components/consult/call-room-view';
 import { CancelSheet } from '@/components/consult/cancel-sheet';
+import { BookedForYouBadge, FamilyAcceptCard } from '@/components/consult/family-access';
 import { JoinPanel } from '@/components/consult/join-panel';
 import { PatientPrescription } from '@/components/consult/patient-prescription';
 import { PrescriptionTimeline } from '@/components/consult/prescription-timeline';
@@ -20,6 +21,7 @@ import { useServerNow } from '@/hooks/use-server-now';
 import { consult } from '@/lib/consult/api';
 import { formatCountdown } from '@/lib/consult/bookingFlow';
 import { formatPaise } from '@/lib/consult/format';
+import { formatIstDateTime } from '@/lib/consult/time';
 import { statusInfo } from '@/lib/consult/status';
 import type { BookingView, JoinResponse } from '@/lib/consult/types';
 import { showWaitingRoom } from '@/lib/consult/waitingRoom';
@@ -94,6 +96,24 @@ export default function BookingScreen() {
     );
   }
 
+  // Family member who has not confirmed yet: doctor and time only, and the one-time question.
+  if (booking.isBookedForYou && booking.familyAccess === 'pending') {
+    return (
+      <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
+        {options}
+        <FamilyAcceptCard
+          booking={booking}
+          onDone={(accepted) => {
+            if (accepted) void flow.refetch();
+            else router.replace('/(tabs)');
+          }}
+        />
+      </ScrollView>
+    );
+  }
+  const forYou = !!booking.isBookedForYou;
+  const forFamily = !forYou && !!booking.guestJoinUrl;
+
   const info = statusInfo(booking.status);
   const fresh = autoPay || flow.paidHere;
   const paidButUnsettled = booking.status === 'PENDING_PAYMENT' && (booking.paymentCaptured || flow.paidHere);
@@ -109,7 +129,8 @@ export default function BookingScreen() {
     />
   );
 
-  const canCancel = info.canCancel && decision.kind !== 'poll' && !booking.underStaffCheck && !paidButUnsettled;
+  // Paying, refunds and cancelling belong to the booker; the family member only attends.
+  const canCancel = !forYou && info.canCancel && decision.kind !== 'poll' && !booking.underStaffCheck && !paidButUnsettled;
 
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
@@ -146,9 +167,38 @@ export default function BookingScreen() {
       )}
       {decision.kind === 'result' && (
         <>
-          <PaymentStatus result={decision.result} fresh={fresh} statusLabel={info.label} doctorId={booking.doctorId} />
+          {forYou ? <BookedForYouBadge booking={booking} /> : <PaymentStatus result={decision.result} fresh={fresh} statusLabel={info.label} doctorId={booking.doctorId} />}
           {summary}
-          <RefundLine booking={booking} />
+          {forYou ? null : <RefundLine booking={booking} />}
+          {forFamily && info.canCancel ? (
+            <View style={styles.familyCard}>
+              <Text style={styles.familyTitle}>
+                {booking.familyLinked ? `✓ ${booking.patientName} has this booking on their phone` : `Send ${booking.patientName} the call link`}
+              </Text>
+              {booking.familyDeclined ? (
+                <Text style={styles.familyWarn} accessibilityRole="alert">
+                  The number you gave said this is not them. Please check {booking.patientName}&apos;s number in your family profiles.
+                </Text>
+              ) : (
+                <Text style={styles.familyBody}>
+                  {booking.familyPhone
+                    ? `We send it on WhatsApp to +91 ${booking.familyPhone}. You can also forward it yourself; no app or login is needed.`
+                    : 'They can join from this link on any phone, with no app or login.'}
+                  {booking.isCaregiverJoined ? ' You can join too, from this screen, to assist.' : ''}
+                </Text>
+              )}
+              <Pressable
+                style={styles.familyBtn}
+                onPress={() =>
+                  void Share.share({
+                    message: `Your DocNow consultation with Dr. ${booking.doctorName} is on ${formatIstDateTime(booking.startsAt)}. Join here: ${booking.guestJoinUrl}`,
+                  })
+                }
+                accessibilityRole="button">
+                <Text style={styles.familyBtnText}>Share call link</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {waiting && booking.type !== 'CHAT' ? (
             <WaitingRoom
               booking={booking}
@@ -262,6 +312,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
+  familyCard: { gap: 8, padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.primaryTint, borderWidth: 1, borderColor: Colors.primarySubtle },
+  familyTitle: { fontSize: 15, fontWeight: '800', color: Colors.primary },
+  familyBody: { fontSize: 13, color: Colors.foreground, lineHeight: 18 },
+  familyWarn: { fontSize: 13, color: Colors.destructive, fontWeight: '600' },
+  familyBtn: { alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.lg, backgroundColor: Colors.primary },
+  familyBtnText: { color: Colors.primaryForeground, fontWeight: '700' },
   waitingText: {
     flex: 1,
     fontSize: 13,

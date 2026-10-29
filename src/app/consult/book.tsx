@@ -4,12 +4,14 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 
 import { AddPersonSheet } from '@/components/consult/add-person-sheet';
 import { BookingSummary } from '@/components/consult/booking-summary';
+import { FamilyIntakeSheet } from '@/components/consult/family-intake-sheet';
 import { PersonPicker } from '@/components/consult/person-picker';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
 import { Colors, Radius } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
 import { consult, errorStatus, errorText, friendlyError, people as peopleApi, type Person } from '@/lib/consult/api';
 import { mapCreateError } from '@/lib/consult/bookingFlow';
+import { intakeError, intakeFromPerson, intakePatch, isFamilyPerson, type IntakeDraft } from '@/lib/consult/family';
 import { formatRupees } from '@/lib/consult/format';
 import { sortPeople } from '@/lib/consult/people';
 import { forgetKey, keyFor, loadActiveBooking, saveActiveBooking } from '@/lib/consult/store';
@@ -30,6 +32,8 @@ export default function BookScreen() {
   const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<{ message: string; myLink?: boolean } | null>(null);
+  // One intake draft per family member picked, so switching people never loses what was typed.
+  const [intakes, setIntakes] = useState<Record<string, IntakeDraft>>({});
 
   const backToDoctor = useCallback(
     (notice: string) => {
@@ -80,13 +84,34 @@ export default function BookScreen() {
     };
   }, [userId, doctorId, slotId, backToDoctor, attempt]);
 
+  const person = people?.find((p) => p.id === personId) ?? null;
+  const forFamily = !!person && isFamilyPerson(person);
+  const intake = person ? (intakes[person.id] ?? intakeFromPerson(person)) : null;
+
   async function pay() {
     if (!slot || !personId || !userId || busy) return;
+    const invalid = forFamily && intake ? intakeError(intake) : null;
+    if (invalid) {
+      setProblem({ message: invalid });
+      return;
+    }
     setBusy(true);
     setProblem(null);
     try {
+      // The intake lives on the person, so the next booking for them starts filled in.
+      if (forFamily && person && intake) {
+        const saved = await peopleApi.updateIntake(person.id, intakePatch(intake));
+        setPeople((cur) => (cur ? cur.map((p) => (p.id === saved.id ? { ...p, ...saved } : p)) : cur));
+      }
       const key = await keyFor(slot.id, personId);
-      const res = await consult.createBooking({ slotId: slot.id, patientId: personId, idempotencyKey: key });
+      const res = await consult.createBooking({
+        slotId: slot.id,
+        patientId: personId,
+        idempotencyKey: key,
+        ...(forFamily && intake
+          ? { isCaregiverJoined: intake.isCaregiverJoined, ...(intake.attachedReportIds.length ? { attachedReportIds: intake.attachedReportIds } : {}) }
+          : {}),
+      });
       await saveActiveBooking({ id: res.consultationId, slotId: slot.id, patientId: personId, userId });
       // Replace, so back never returns to this screen.
       router.replace({ pathname: '/consult/booking/[id]', params: { id: res.consultationId, pay: '1' } });
@@ -124,6 +149,10 @@ export default function BookScreen() {
       <View style={styles.card}>
         <PersonPicker people={people} value={personId} onChange={setPersonId} onAdd={() => setAddOpen(true)} />
       </View>
+
+      {forFamily && person && intake ? (
+        <FamilyIntakeSheet person={person} value={intake} onChange={(next) => setIntakes((cur) => ({ ...cur, [person.id]: next }))} />
+      ) : null}
 
       {problem ? (
         <View style={styles.problem} accessibilityRole="alert">

@@ -32,7 +32,8 @@ export function PatientPrescription({ bookingId }: Props) {
     setBusyAction('pdf');
     setActionError(null);
     try {
-      const url = consult.prescriptionPdfUrl(bookingId);
+      // A signed link: the browser cannot send the sign-in header the plain PDF route needs.
+      const url = await consult.prescriptionLink(bookingId);
       await WebBrowser.openBrowserAsync(url);
     } catch (e) {
       setActionError(friendlyError(e, 'Could not open prescription PDF.'));

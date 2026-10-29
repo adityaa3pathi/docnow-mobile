@@ -16,7 +16,11 @@
           "phonepe",
           "paytmmp"
         ]
-      }
+      },
+      "associatedDomains": [
+        "applinks:docnow.in",
+        "applinks:www.docnow.in"
+      ]
     },
     "android": {
       "package": "in.docnow.app",
@@ -26,7 +30,29 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "docnow.in",
+              "pathPrefix": "/call/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.docnow.in",
+              "pathPrefix": "/call/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "output": "static",

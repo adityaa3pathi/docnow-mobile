@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BookedForYouBanner } from '@/components/consult/family-access';
 import { DoctorCard } from '@/components/consult/doctor-card';
 import { SpecialtyChips } from '@/components/consult/specialty-chips';
 import { EmptyState, ErrorState, LoadingBlock } from '@/components/consult/states';
@@ -71,6 +72,9 @@ export default function HomeScreen() {
           )}
         </Pressable>
       </View>
+
+      {/* A family member booked a consultation for this user: one tap to join. */}
+      <BookedForYouBanner />
 
       {/* Universal Search Bar */}
       <Pressable

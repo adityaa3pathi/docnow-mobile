@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/consult/badge';
+import { BookedForYouBadge } from '@/components/consult/family-access';
 import { Colors, Radius } from '@/constants/theme';
 import { formatPaise } from '@/lib/consult/format';
 import { statusInfo } from '@/lib/consult/status';
@@ -13,7 +14,9 @@ const REFUND_SHORT = { PENDING: 'Refund on its way', PROCESSED: 'Refund sent', F
 export function BookingCard({ booking, holdLive }: { booking: BookingView; holdLive?: boolean }) {
   const info = statusInfo(booking.status);
   const refund = booking.refundPaise > 0 ? `${formatPaise(booking.refundPaise)} ${booking.refundStatus ? REFUND_SHORT[booking.refundStatus] : 'refund being prepared'}` : null;
-  const label = `${booking.doctorName}, ${booking.specialty}, ${info.label}, ${formatIstDateTime(booking.startsAt)}, for ${booking.patientName}${refund ? `, ${refund}` : ''}`;
+  const forYou = !!booking.isBookedForYou;
+  const pending = booking.familyAccess === 'pending';
+  const label = `${booking.doctorName}, ${booking.specialty}, ${info.label}, ${formatIstDateTime(booking.startsAt)}, for ${booking.patientName}${forYou ? ', booked for you' : ''}${refund ? `, ${refund}` : ''}`;
   return (
     <Pressable
       style={styles.card}
@@ -28,9 +31,14 @@ export function BookingCard({ booking, holdLive }: { booking: BookingView; holdL
         <Badge tone={info.tone}>{info.label}</Badge>
       </View>
       <Text style={styles.when}>{formatIstDateTime(booking.startsAt)}</Text>
-      <Text style={styles.small}>For {booking.patientName} · {formatPaise(booking.amountPaise)}</Text>
+      {forYou ? (
+        <BookedForYouBadge booking={booking} />
+      ) : (
+        <Text style={styles.small}>For {booking.patientName} · {formatPaise(booking.amountPaise)}</Text>
+      )}
       {refund ? <Text style={styles.refund}>{refund}</Text> : null}
       {holdLive ? <Text style={styles.cta}>Continue to pay</Text> : null}
+      {pending ? <Text style={styles.cta}>Confirm it&apos;s you to join ›</Text> : null}
     </Pressable>
   );
 }

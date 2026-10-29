@@ -4,7 +4,7 @@ import { isAxiosError } from 'axios';
 import { api, errorMessage } from '@/lib/api';
 import type {
     AvailabilityWindow, BookingView, CancelPreview, CancelResult, CartAddResult, ConsultNote, ConsultationStatus,
-    CreateBookingResponse, DoctorConsultationPage, DoctorConsultationRecord, DoctorMe, DoctorProfileInput,
+    CreateBookingInput, CreateBookingResponse, DoctorConsultationPage, GuestInfo, DoctorConsultationRecord, DoctorMe, DoctorProfileInput,
     DoctorPublicProfile, DoctorSummary, JoinResponse, LeaveEntry, NoteInput, Prescription, PrescriptionInput, ReassignOption,
     Slot, Specialty, VerifyResponse,
 } from './types';
@@ -15,7 +15,21 @@ export interface Person {
     relation: string;
     age: number;
     gender: string;
+    // Family intake (older servers leave these out).
+    /** The family member's own 10-digit mobile: they see the booking when they sign in with it. */
+    phone?: string | null;
+    preferredLanguage?: 'hi' | 'en';
+    bloodGroup?: string | null;
+    allergies?: string[];
+    chronicConditions?: string[];
+    currentMedications?: string[];
+    /** Set once the family member accepted bookings on their own phone. */
+    linkedAt?: string | null;
+    /** Set when the owner of `phone` said "this is not me". */
+    linkDeclinedAt?: string | null;
 }
+
+export type PersonIntake = Pick<Person, 'phone' | 'preferredLanguage' | 'bloodGroup' | 'allergies' | 'chronicConditions' | 'currentMedications'>;
 
 /** The server's own message when there is one, otherwise a plain fallback. */
 export function friendlyError(e: unknown, fallback?: string): string {
@@ -40,8 +54,7 @@ export const consult = {
     doctors: (specialtyId?: string) => get<DoctorSummary[]>('/api/consult/doctors', { params: specialtyId ? { specialtyId } : undefined }),
     doctor: (id: string) => get<DoctorPublicProfile>(`/api/consult/doctors/${id}`),
     slots: (doctorId: string) => get<Slot[]>(`/api/consult/doctors/${doctorId}/slots`),
-    createBooking: (body: { slotId: string; patientId: string; idempotencyKey: string }) =>
-        post<CreateBookingResponse>('/api/consult/bookings', body),
+    createBooking: (body: CreateBookingInput) => post<CreateBookingResponse>('/api/consult/bookings', body),
     bookings: () => get<BookingView[]>('/api/consult/bookings'),
     booking: (id: string) => get<BookingView>(`/api/consult/bookings/${id}`, { timeout: 10_000 }),
     verify: (id: string, body: { razorpay_order_id?: string; razorpay_payment_id: string; razorpay_signature: string }) =>
@@ -51,6 +64,17 @@ export const consult = {
     join: (id: string) => post<JoinResponse>(`/api/consult/bookings/${id}/join`),
     prescription: (id: string) => get<Prescription>(`/api/consult/bookings/${id}/prescription`),
     prescriptionPdfUrl: (id: string) => `${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/consult/bookings/${id}/prescription.pdf`,
+    /** A signed link that opens the PDF without sign-in headers (in-app browser, sharing). */
+    prescriptionLink: (id: string) =>
+        get<{ token: string; expiresInHours: number }>(`/api/consult/bookings/${id}/prescription/link`).then(
+            (r) => `${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/consult/prescriptions/public/${r.token}`,
+        ),
+    // Family member: "booked for you by …" — accept once per person, or say it is not them.
+    acceptFamily: (patientId: string) => post<{ patientId: string; linked: boolean }>(`/api/consult/family/${patientId}/accept`),
+    declineFamily: (patientId: string) => post<{ patientId: string; linked: boolean }>(`/api/consult/family/${patientId}/decline`),
+    // Zero-login join (docnow.in/call/<token>): works signed in or not.
+    guestInfo: (token: string) => get<GuestInfo>(`/api/consult/guest/${encodeURIComponent(token)}`),
+    guestJoin: (token: string) => post<JoinResponse>(`/api/consult/guest/${encodeURIComponent(token)}/join`),
     addTestsToCart: (id: string) => post<CartAddResult>(`/api/consult/bookings/${id}/recommended-tests/cart`),
     // Doctor running late: each answers 409 until the server sees the doctor 5+ minutes late.
     rescheduleSlots: (id: string) => get<Slot[]>(`/api/consult/bookings/${id}/reschedule-slots`),
@@ -65,6 +89,9 @@ export const people = {
     ensureSelf: () => post<Person>('/api/profile/patients/ensure-self'),
     add: (body: { name: string; relation: string; age: number; gender: string }) =>
         post<{ patient: Person }>('/api/profile/patients', body).then((r) => r.patient),
+    /** Saves the family intake (phone, language, health snapshot). */
+    updateIntake: (id: string, body: PersonIntake) =>
+        api.patch<{ patient: Person }>(`/api/profile/patients/${id}`, body).then((r) => r.data.patient),
 };
 
 export const doctor = {

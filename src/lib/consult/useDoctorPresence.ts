@@ -2,6 +2,8 @@ import { useRemoteParticipants } from '@livekit/react-native';
 import { ConnectionQuality, ParticipantEvent, RemoteParticipant } from 'livekit-client';
 import { useEffect, useState } from 'react';
 
+import { partyOf, type CallParty } from './family';
+
 export type DoctorPresenceStatus = 'waiting' | 'present' | 'unstable' | 'disconnected';
 
 export interface DoctorPresenceState {
@@ -48,9 +50,21 @@ export function resolveDoctorPresence(
   };
 }
 
-export function useDoctorPresence(otherPartyName?: string): DoctorPresenceState {
+/**
+ * The person this viewer is waiting for, by room identity: the doctor for the patient side
+ * (patient or caregiver), the patient side for the doctor. Rooms from before three-way calls
+ * carry bare user ids, so then the first remote person is used, as before.
+ */
+export function pickOtherParty<T extends { identity: string }>(remotes: T[], viewer: CallParty): T | undefined {
+  const prefixed = remotes.some((r) => partyOf(r.identity) !== null);
+  if (!prefixed) return remotes[0];
+  if (viewer === 'doctor') return remotes.find((r) => partyOf(r.identity) === 'patient') ?? remotes.find((r) => partyOf(r.identity) === 'caretaker');
+  return remotes.find((r) => partyOf(r.identity) === 'doctor');
+}
+
+export function useDoctorPresence(otherPartyName?: string, viewer: CallParty = 'patient'): DoctorPresenceState {
   const remoteParticipants = useRemoteParticipants();
-  const doctor = remoteParticipants[0] as RemoteParticipant | undefined;
+  const doctor = pickOtherParty(remoteParticipants, viewer) as RemoteParticipant | undefined;
 
   const [hadDoctorJoined, setHadDoctorJoined] = useState(false);
   if (doctor && !hadDoctorJoined) {

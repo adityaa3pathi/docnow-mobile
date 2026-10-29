@@ -77,6 +77,45 @@ export interface BookingView extends CreateBookingResponse {
     /** If the doctor still has not joined by here, the server refunds in full by itself. */
     doctorNoShowAt?: string;
     cancelReason?: string | null;
+    // Assisted family consultations.
+    /** The booker said they will co-join the call to assist. */
+    isCaregiverJoined?: boolean;
+    /** Booker's view of a family visit: the zero-login link to forward, and the family link state. */
+    guestToken?: string | null;
+    guestJoinUrl?: string | null;
+    familyPhone?: string | null;
+    familyLinked?: boolean;
+    /** The owner of the family phone said "this is not me": the number is probably wrong. */
+    familyDeclined?: boolean;
+    /** The signed-in user is the family member, not the booker. */
+    isBookedForYou?: boolean;
+    bookedBy?: { name: string; relation: string };
+    /** Family member's view: `pending` until they accept (doctor and time only, nothing clinical). */
+    familyAccess?: 'pending' | 'linked';
+}
+
+export interface CreateBookingInput {
+    slotId: string;
+    patientId: string;
+    idempotencyKey: string;
+    /** Family visits: the booker will co-join the call to assist. */
+    isCaregiverJoined?: boolean;
+    /** DocNow lab reports to share with the doctor (at most 5). */
+    attachedReportIds?: string[];
+}
+
+/** GET /api/consult/guest/:token — what the zero-login room shows before joining. */
+export interface GuestInfo {
+    status: ConsultationStatus;
+    type: ConsultationType;
+    startsAt: string;
+    endsAt: string;
+    opensAt: string;
+    window: 'early' | 'open';
+    doctorJoined: boolean;
+    patientFirstName: string;
+    language: 'hi' | 'en';
+    doctor: { name: string; photoUrl: string | null; qualification: string; specialty: string };
 }
 
 /** The next free doctor offered when the booked doctor is late. */
@@ -232,6 +271,8 @@ export interface JoinResponse {
     role: string;
     /** LiveKit access token for this person and room; it carries their display name. */
     token: string;
+    /** Room identity: `doctor:<id>`, `patient:<id>` or `caretaker:<userId>`. */
+    identity?: string;
 }
 
 export interface Medicine {
@@ -306,7 +347,21 @@ export interface DoctorConsultationRecord {
     patientJoinedAt: string | null;
     doctorJoinedAt: string | null;
     slot: { endsAt: string };
-    patient: { name: string; age: number; gender: string };
+    patient: {
+        name: string;
+        age: number;
+        gender: string;
+        relation?: string;
+        preferredLanguage?: string;
+        bloodGroup?: string | null;
+        allergies?: string[];
+        chronicConditions?: string[];
+        currentMedications?: string[];
+    };
+    /** Family bookings: who booked and whether they co-join to assist. */
+    caregiver?: { name: string; relation: string; coJoining: boolean; joinedAt: string | null } | null;
+    /** Lab reports shared for this consultation; `viewToken` opens /api/reports/public/:token. */
+    attachedReports?: { id: string; label: string; isFullReport: boolean; date: string; viewToken: string }[];
     note: ConsultNote | null;
     /** The current (unvoided) version, if one has been issued. */
     prescription: Prescription | null;

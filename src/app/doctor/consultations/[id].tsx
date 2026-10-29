@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/consult/badge';
 import { CallRoomView } from '@/components/consult/call-room-view';
@@ -21,6 +22,7 @@ import {
   workspaceBadge,
 } from '@/lib/consult/doctorWorkspace';
 import { formatIstDay, formatIstTime, serverNow } from '@/lib/consult/time';
+import { reportsApi } from '@/lib/tests/api';
 import type { DoctorConsultationRecord, JoinResponse } from '@/lib/consult/types';
 import { hapticImpact, hapticNotify, ImpactFeedbackStyle, NotificationFeedbackType } from '@/lib/haptics';
 
@@ -35,11 +37,71 @@ function Row({ label, value, muted }: { label: string; value: string; muted?: bo
   );
 }
 
+function Tags({ items, warn }: { items: string[]; warn?: boolean }) {
+  return (
+    <View style={styles.tags}>
+      {items.map((x) => (
+        <View key={x} style={[styles.tag, warn && styles.tagWarn]}>
+          <Text style={[styles.tagText, warn && styles.tagTextWarn]}>{x}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function PreCallSummary({ record }: { record: DoctorConsultationRecord }) {
   const note = record.note;
+  const p = record.patient;
+  const conditions = p.chronicConditions ?? [];
+  const allergies = p.allergies ?? [];
+  const medicines = p.currentMedications ?? [];
+  const reports = record.attachedReports ?? [];
+  const hasIntake = conditions.length + allergies.length + medicines.length > 0 || !!p.bloodGroup;
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle} accessibilityRole="header">Pre-call summary</Text>
+      {record.caregiver ? (
+        <View style={styles.caregiver} testID="dossier-caregiver">
+          <Text style={styles.caregiverText}>
+            👪 Booked by {record.caregiver.name} (patient is their {record.caregiver.relation.toLowerCase()}).{' '}
+            {record.caregiver.joinedAt ? 'They are in the call to assist.' : record.caregiver.coJoining ? 'They plan to join to assist.' : 'They are not joining.'}
+            {p.preferredLanguage === 'hi' ? ' Prefers Hindi.' : ''}
+          </Text>
+        </View>
+      ) : null}
+      {conditions.length ? (
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Conditions</Text>
+          <Tags items={conditions} />
+        </View>
+      ) : null}
+      {allergies.length ? (
+        <View style={styles.row}>
+          <Text style={[styles.rowLabel, styles.warnLabel]}>Allergies</Text>
+          <Tags items={allergies} warn />
+        </View>
+      ) : null}
+      {medicines.length ? (
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Current medicines</Text>
+          <Tags items={medicines} />
+        </View>
+      ) : null}
+      {p.bloodGroup ? <Row label="Blood group" value={p.bloodGroup} /> : null}
+      {reports.length ? (
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Shared reports</Text>
+          {reports.map((r) => (
+            <Pressable
+              key={r.id}
+              onPress={() => void WebBrowser.openBrowserAsync(reportsApi.publicUrl(r.viewToken))}
+              accessibilityRole="link"
+              accessibilityLabel={`Open report ${r.label}`}>
+              <Text style={styles.reportLink}>📄 {r.label} · {formatIstDay(r.date)}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       <Row
         label="Chief complaint"
         value={note?.complaints || 'Not recorded yet. Ask at the start of the call.'}
@@ -47,12 +109,14 @@ function PreCallSummary({ record }: { record: DoctorConsultationRecord }) {
       />
       {note?.findings ? <Row label="Examination" value={note.findings} /> : null}
       {note?.diagnosis ? <Row label="Working diagnosis" value={note.diagnosis} /> : null}
-      <View style={styles.intakeNote}>
-        <Text style={styles.intakeText}>
-          ⚠️ Medical history, allergies and documents are not collected at booking yet. Confirm allergies and current
-          medicines verbally before prescribing.
-        </Text>
-      </View>
+      {!hasIntake ? (
+        <View style={styles.intakeNote}>
+          <Text style={styles.intakeText}>
+            ⚠️ No medical history or allergies were shared at booking. Confirm allergies and current medicines verbally
+            before prescribing.
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -308,6 +372,15 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 12, fontWeight: '700', color: Colors.mutedForeground, textTransform: 'uppercase', letterSpacing: 0.4 },
   rowValue: { fontSize: 14, color: Colors.foreground, lineHeight: 20 },
   rowMuted: { color: Colors.mutedForeground, fontStyle: 'italic' },
+  caregiver: { padding: 10, borderRadius: Radius.md, backgroundColor: Colors.primaryTint },
+  caregiverText: { fontSize: 13, color: Colors.foreground, lineHeight: 18 },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
+  tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full, backgroundColor: Colors.cardMuted },
+  tagWarn: { backgroundColor: Colors.destructiveTint },
+  tagText: { fontSize: 12, fontWeight: '700', color: Colors.foreground },
+  tagTextWarn: { color: Colors.destructive },
+  warnLabel: { color: Colors.destructive },
+  reportLink: { fontSize: 14, fontWeight: '700', color: Colors.primary, paddingVertical: 4 },
   intakeNote: { padding: 10, borderRadius: Radius.md, backgroundColor: Colors.warningTint },
   intakeText: { fontSize: 12, color: '#92400e', lineHeight: 17 },
 });

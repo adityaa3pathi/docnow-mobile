@@ -20,6 +20,7 @@ import { type ReconnectState, ObservableReconnectPolicy } from '@/lib/consult/re
 import { CONNECT_OPTIONS, buildRoomOptions } from '@/lib/consult/roomOptions';
 import { useDoctorPresence } from '@/lib/consult/useDoctorPresence';
 import { useNetworkAdaptation } from '@/lib/consult/useNetworkAdaptation';
+import { partyOf } from '@/lib/consult/family';
 import type { ConsultRoomEvent } from '@/lib/consult/types';
 import type { RoomTools, WaitingAidContext } from './call-room-view';
 import { NetworkBanner } from './network-banner';
@@ -180,15 +181,16 @@ function Stage({
   const connectionState = useConnectionState();
   const remoteParticipants = useRemoteParticipants();
   const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare]);
-  const presence = useDoctorPresence(otherPartyName);
+  const presence = useDoctorPresence(otherPartyName, isDoctor ? 'doctor' : 'patient');
+  const primary = presence.doctor;
+  // Three-way calls: everyone else (the caregiver, or the patient for the caregiver) as small tiles.
+  const others = remoteParticipants.filter((p) => p !== primary);
 
-  const remoteVideoTrack = tracks.find(
-    (t) => t.participant.identity !== 'local' && t.publication.isSubscribed && t.publication.track,
-  );
-
-  const localVideoTrack = tracks.find(
-    (t) => t.participant.identity === 'local' && t.publication.track,
-  );
+  const trackOf = (identity: string) =>
+    tracks.find((t) => !t.participant.isLocal && t.participant.identity === identity && t.publication.isSubscribed && t.publication.track);
+  const remoteVideoTrack = primary ? trackOf(primary.identity) : undefined;
+  const localVideoTrack = tracks.find((t) => t.participant.isLocal && t.publication.track);
+  const roster = others.map((p) => p.name || (partyOf(p.identity) === 'caretaker' ? 'Family member' : 'Patient'));
 
   if (connectionState === ConnectionState.Connecting) {
     return (
@@ -207,6 +209,7 @@ function Stage({
           Waiting for {otherPartyName || (isDoctor ? 'the patient' : 'the doctor')} to join...
         </Text>
         <Text style={styles.statusSub}>You will see and hear them as soon as they enter.</Text>
+        {roster.length ? <Text style={styles.rosterLine} testID="call-roster">Already here: {roster.join(', ')}</Text> : null}
       </View>
     );
   }
@@ -242,6 +245,21 @@ function Stage({
           <VideoTrack trackRef={localVideoTrack} style={styles.pipVideo} />
         </View>
       )}
+
+      {others.length > 0 && (
+        <View style={styles.othersColumn} testID="call-others">
+          {others.map((p) => {
+            const t = audioOnly ? undefined : trackOf(p.identity);
+            const name = p.name || (partyOf(p.identity) === 'caretaker' ? 'Family member' : 'Patient');
+            return (
+              <View key={p.identity} style={styles.otherTile}>
+                {t ? <VideoTrack trackRef={t} style={styles.pipVideo} /> : <Text style={styles.otherInitial}>{name.slice(0, 1).toUpperCase()}</Text>}
+                <Text style={styles.otherName} numberOfLines={1}>{name}</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
@@ -266,7 +284,7 @@ function InCallExperience({
   renderWaitingAid?: (ctx: WaitingAidContext) => React.ReactNode;
 }) {
   const connectionState = useConnectionState();
-  const presence = useDoctorPresence(otherPartyName);
+  const presence = useDoctorPresence(otherPartyName, isDoctor ? 'doctor' : 'patient');
   const { isAudioOnlyDegraded, tryVideoAgain } = useNetworkAdaptation();
   const [isDoctorDrafting, setIsDoctorDrafting] = useState(false);
   const [hasIssuedPrescription, setHasIssuedPrescription] = useState(false);
@@ -498,6 +516,47 @@ const styles = StyleSheet.create({
     right: 10,
     width: 75,
     height: 105,
+  },
+  othersColumn: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    gap: 8,
+  },
+  otherTile: {
+    width: 84,
+    height: 112,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otherInitial: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  otherName: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingVertical: 2,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  rosterLine: {
+    color: '#C4B5FD',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 12,
+    textAlign: 'center',
   },
   pipVideo: {
     flex: 1,

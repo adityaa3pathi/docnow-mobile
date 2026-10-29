@@ -6,6 +6,8 @@
  *   docnow://doctor/consultations/<consultationId> doctor opens the consultation workspace
  *   docnow://records/prescription/<consultationId> patient opens the issued prescription
  *   docnow://records/report/<reportId>             patient opens a lab report
+ *   docnow://consult/guest/<guestToken>            family member joins without signing in
+ *   https://docnow.in/call/<guestToken>            same, as a universal / app link
  */
 export const DEEP_LINK_SCHEME = 'docnow';
 
@@ -13,7 +15,8 @@ export type DeepLinkTarget =
     | { kind: 'consult-room'; id: string }
     | { kind: 'doctor-consultation'; id: string }
     | { kind: 'prescription'; id: string }
-    | { kind: 'report'; id: string };
+    | { kind: 'report'; id: string }
+    | { kind: 'guest-call'; id: string };
 
 // Consultation ids are UUIDs; the looser pattern still refuses slashes, dots and encoded characters.
 const ID = /^[A-Za-z0-9-]{1,64}$/;
@@ -23,14 +26,19 @@ const ROUTES: { prefix: readonly string[]; kind: DeepLinkTarget['kind'] }[] = [
     { prefix: ['doctor', 'consultations'], kind: 'doctor-consultation' },
     { prefix: ['records', 'prescription'], kind: 'prescription' },
     { prefix: ['records', 'report'], kind: 'report' },
+    { prefix: ['consult', 'guest'], kind: 'guest-call' },
+    { prefix: ['call'], kind: 'guest-call' },
 ];
+
+/** Our own web origin: universal / app links on it open in the app when installed. */
+const APP_LINK_ORIGIN = /^https?:\/\/(www\.)?docnow\.in(?=\/|$)/i;
 
 /** Strips scheme, host-less slashes, Expo Go's `/--/` prefix, query and hash, leaving `a/b/c`. */
 function pathOf(url: string): string {
     let rest = url.trim();
     const expoGo = rest.indexOf('/--/');
     if (expoGo !== -1) rest = rest.slice(expoGo + 4);
-    else rest = rest.replace(new RegExp(`^${DEEP_LINK_SCHEME}:`, 'i'), '');
+    else rest = rest.replace(APP_LINK_ORIGIN, '').replace(new RegExp(`^${DEEP_LINK_SCHEME}:`, 'i'), '');
     rest = rest.split(/[?#]/, 1)[0] ?? '';
     return rest.replace(/^\/+/, '').replace(/\/+$/, '');
 }
@@ -39,7 +47,8 @@ function pathOf(url: string): string {
 export function parseDeepLink(url: string | null | undefined): DeepLinkTarget | null {
     if (!url) return null;
     // Other schemes (https, exp, payment apps) are not ours to route; Expo Go links carry `/--/`.
-    if (/^[a-z][a-z0-9+.-]*:/i.test(url.trim()) && !url.trim().toLowerCase().startsWith(`${DEEP_LINK_SCHEME}:`) && !url.includes('/--/')) {
+    const u = url.trim();
+    if (/^[a-z][a-z0-9+.-]*:/i.test(u) && !u.toLowerCase().startsWith(`${DEEP_LINK_SCHEME}:`) && !u.includes('/--/') && !APP_LINK_ORIGIN.test(u)) {
         return null;
     }
     const parts = pathOf(url).split('/');
@@ -63,6 +72,8 @@ export function deepLinkPath(target: DeepLinkTarget): string {
             return `/consult/prescription/${target.id}`;
         case 'report':
             return `/records/report/${target.id}`;
+        case 'guest-call':
+            return `/call/${target.id}`;
     }
 }
 
@@ -73,6 +84,7 @@ export function deepLinkUrl(target: DeepLinkTarget): string {
         'doctor-consultation': 'doctor/consultations',
         prescription: 'records/prescription',
         report: 'records/report',
+        'guest-call': 'consult/guest',
     }[target.kind];
     return `${DEEP_LINK_SCHEME}://${segment}/${target.id}`;
 }

@@ -42,7 +42,7 @@ export interface CatalogCategory {
   sortOrder: number;
 }
 
-export interface Patient {
+export interface Patient extends PatientHealth {
   id: string;
   userId: string;
   name: string;
@@ -161,6 +161,16 @@ export interface BookingItemSummary {
   testName: string;
   price: number;
   patient: Patient;
+}
+
+/** Family-intake fields on a patient profile (see Person in lib/consult/api). */
+export interface PatientHealth {
+  phone?: string | null;
+  preferredLanguage?: 'hi' | 'en';
+  bloodGroup?: string | null;
+  allergies?: string[];
+  chronicConditions?: string[];
+  currentMedications?: string[];
 }
 
 export interface BookingReport {
