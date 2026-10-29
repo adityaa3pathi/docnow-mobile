@@ -36,3 +36,31 @@ vi.mock('@livekit/react-native', () => ({
   AudioTrack: () => null,
 }));
 
+
+// Icons and SVG are native modules; in jsdom an icon renders as an empty element so screens still mount.
+vi.mock('lucide-react-native', async () => {
+  const { createElement } = await import('react');
+  const { View } = await import('react-native');
+  const Icon = (props: { testID?: string }) => createElement(View, { testID: props.testID });
+  return new Proxy({} as Record<string, unknown>, {
+    get: (_t, key) => (key === 'then' ? undefined : key === '__esModule' ? true : Icon),
+    has: () => true,
+  });
+});
+
+vi.mock('react-native-svg', async () => {
+  const { createElement } = await import('react');
+  const { View } = await import('react-native');
+  const Group = ({ children }: { children?: unknown }) => createElement(View, null, children as never);
+  const Shape = () => null;
+  return { __esModule: true, default: Group, Svg: Group, G: Group, Defs: Group, LinearGradient: Group, Stop: Shape, Circle: Shape, Path: Shape, Rect: Shape };
+});
+
+vi.mock('expo-linear-gradient', async () => {
+  const { createElement } = await import('react');
+  const { View } = await import('react-native');
+  return {
+    LinearGradient: ({ children, style, testID }: { children?: unknown; style?: unknown; testID?: string }) =>
+      createElement(View, { style: style as never, testID }, children as never),
+  };
+});

@@ -1,15 +1,19 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BadgeCheck, Clock, Video } from 'lucide-react-native';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { ProgressRing } from '@/components/ui/progress-ring';
+import { PulseDot } from '@/components/ui/pulse-dot';
+import { Colors, PrimaryGradient, Radius, Shadow, Type } from '@/constants/theme';
 import { usePrecallNotes } from '@/hooks/use-precall-notes';
 import { useServerNow } from '@/hooks/use-server-now';
 import { friendlyError } from '@/lib/consult/api';
 import { joinWindow } from '@/lib/consult/room';
 import { formatIstTime } from '@/lib/consult/time';
 import type { BookingView, JoinResponse } from '@/lib/consult/types';
-import { CHECKLIST, countdownLabel, doctorDelay } from '@/lib/consult/waitingRoom';
+import { CHECKLIST, countdownLabel, doctorDelay, timeLeft, waitingProgress } from '@/lib/consult/waitingRoom';
 import { hapticImpact, hapticNotify, ImpactFeedbackStyle, NotificationFeedbackType } from '@/lib/haptics';
 import { DoctorDelayCard, type DelayOutcome } from './doctor-delay-card';
 import { QuestionsNotepad } from './questions-notepad';
@@ -27,20 +31,9 @@ interface Props {
 }
 
 function InRoomBadge({ name }: { name: string }) {
-  const [pulse] = useState(() => new Animated.Value(1));
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.45, duration: 700, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
   return (
     <View style={styles.inRoom} testID="doctor-in-room" accessibilityRole="alert" accessibilityLiveRegion="assertive">
-      <Animated.View style={[styles.inRoomDot, { opacity: pulse }]} />
+      <PulseDot color={Colors.success} size={12} />
       <Text style={styles.inRoomText}>Dr. {name} is in the room and ready for you</Text>
     </View>
   );
@@ -91,27 +84,55 @@ export function WaitingRoom({ booking, join, onJoined, inCall, autoJoin = false,
   }, [autoJoin, open]);
 
   const done = notes.checked.length;
+  const left = timeLeft(booking.startsAt, now);
 
   return (
     <View style={styles.wrap} testID="waiting-room">
-      <View style={styles.hero}>
+      <LinearGradient colors={PrimaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, Shadow.raised]}>
+        <Text style={styles.kicker}>Waiting room</Text>
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <ProgressRing progress={waitingProgress(booking.startsAt, now)} color="#fff" track="rgba(255, 255, 255, 0.2)">
+            {left ? (
+              <>
+                <Text style={styles.ringTime}>{left}</Text>
+                <Text style={styles.ringCaption}>min left</Text>
+              </>
+            ) : (
+              <>
+                <Video size={34} color="#fff" strokeWidth={2.2} />
+                <Text style={styles.ringCaption}>Starting now</Text>
+              </>
+            )}
+          </ProgressRing>
+        </View>
         <Text style={styles.countdown} testID="waiting-countdown" accessibilityRole="timer">
           {countdownLabel(booking.startsAt, now)}
         </Text>
+      </LinearGradient>
+
+      <View style={[styles.doctorCard, Shadow.card]}>
         <View style={styles.doctorRow}>
-          {booking.doctorPhotoUrl ? (
-            <Image source={{ uri: booking.doctorPhotoUrl }} style={styles.photo} contentFit="cover" accessibilityIgnoresInvertColors />
-          ) : (
-            <View style={[styles.photo, styles.initials]}>
-              <Text style={styles.initialsText}>{booking.doctorName.slice(0, 1).toUpperCase()}</Text>
+          <View>
+            {booking.doctorPhotoUrl ? (
+              <Image source={{ uri: booking.doctorPhotoUrl }} style={styles.photo} contentFit="cover" accessibilityIgnoresInvertColors />
+            ) : (
+              <View style={[styles.photo, styles.initials]}>
+                <Text style={styles.initialsText}>{booking.doctorName.slice(0, 1).toUpperCase()}</Text>
+              </View>
+            )}
+            <View style={styles.verified} accessibilityElementsHidden>
+              <BadgeCheck size={18} color="#fff" fill={Colors.success} strokeWidth={2.4} />
             </View>
-          )}
+          </View>
           <View style={styles.flex}>
             <Text style={styles.doctorName}>Dr. {booking.doctorName}</Text>
-            <Text style={styles.doctorMeta}>{[booking.doctorQualification, booking.specialty].filter(Boolean).join(' · ')}</Text>
-            <Text style={styles.doctorMeta}>
-              {formatIstTime(booking.startsAt)} – {formatIstTime(booking.endsAt)} IST · for {booking.patientName}
-            </Text>
+            <Text style={styles.doctorSpecialty}>{[booking.doctorQualification, booking.specialty].filter(Boolean).join(' · ')}</Text>
+            <View style={styles.timeRow}>
+              <Clock size={13} color={Colors.mutedForeground} />
+              <Text style={styles.doctorMeta}>
+                {formatIstTime(booking.startsAt)} – {formatIstTime(booking.endsAt)} IST · for {booking.patientName}
+              </Text>
+            </View>
           </View>
         </View>
         {doctorIn ? <InRoomBadge name={booking.doctorName} /> : null}
@@ -174,16 +195,22 @@ export function WaitingRoom({ booking, join, onJoined, inCall, autoJoin = false,
 const styles = StyleSheet.create({
   wrap: { gap: 14 },
   flex: { flex: 1 },
-  hero: { gap: 14, padding: 18, borderRadius: Radius.xl, backgroundColor: Colors.primary },
-  countdown: { fontSize: 20, fontWeight: '800', color: Colors.primaryForeground, fontVariant: ['tabular-nums'] },
-  doctorRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  photo: { width: 56, height: 56, borderRadius: Radius.full, backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+  hero: { alignItems: 'center', gap: 12, paddingVertical: 20, paddingHorizontal: 18, borderRadius: Radius.xxl },
+  kicker: { fontSize: Type.caption, fontWeight: '800', color: 'rgba(255, 255, 255, 0.8)', textTransform: 'uppercase', letterSpacing: 1 },
+  ringTime: { fontSize: 40, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'] },
+  ringCaption: { fontSize: Type.caption, fontWeight: '700', color: 'rgba(255, 255, 255, 0.8)', marginTop: 2 },
+  countdown: { fontSize: Type.title, fontWeight: '700', color: Colors.primaryForeground, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  doctorCard: { gap: 14, padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
+  doctorRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  photo: { width: 84, height: 84, borderRadius: Radius.xl, backgroundColor: Colors.primaryTint },
   initials: { alignItems: 'center', justifyContent: 'center' },
-  initialsText: { fontSize: 22, fontWeight: '800', color: Colors.primaryForeground },
-  doctorName: { fontSize: 17, fontWeight: '800', color: Colors.primaryForeground },
-  doctorMeta: { fontSize: 12, color: 'rgba(255, 255, 255, 0.8)', marginTop: 2 },
-  inRoom: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: Radius.lg, backgroundColor: Colors.successTint },
-  inRoomDot: { width: 12, height: 12, borderRadius: Radius.full, backgroundColor: Colors.success },
+  initialsText: { fontSize: 30, fontWeight: '800', color: Colors.primary },
+  verified: { position: 'absolute', right: -4, bottom: -4, borderRadius: Radius.full, borderWidth: 2, borderColor: Colors.card, backgroundColor: Colors.success },
+  doctorName: { fontSize: Type.headline, fontWeight: '800', color: Colors.foreground },
+  doctorSpecialty: { fontSize: Type.body - 1, fontWeight: '600', color: Colors.primary, marginTop: 2 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
+  doctorMeta: { flex: 1, fontSize: Type.caption, color: Colors.mutedForeground },
+  inRoom: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: Radius.lg, backgroundColor: Colors.successTint },
   inRoomText: { flex: 1, fontWeight: '800', color: '#166534' },
   join: { minHeight: 54, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.xl, backgroundColor: Colors.primary },
   joinText: { color: Colors.primaryForeground, fontWeight: '800', fontSize: 16 },

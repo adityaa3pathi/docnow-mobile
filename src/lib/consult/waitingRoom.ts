@@ -27,6 +27,18 @@ export function countdownLabel(startsAt: string, nowMs: number): string {
     return left > 0 ? `Your consultation starts in ${formatMmSs(left)}` : 'Your consultation is starting now';
 }
 
+/** How far through the 15-minute lead-up we are, 0 when the waiting room appears to 1 at the start time. */
+export function waitingProgress(startsAt: string, nowMs: number): number {
+    const left = Date.parse(startsAt) - nowMs;
+    return Math.min(1, Math.max(0, 1 - left / WAITING_ROOM_LEAD_MS));
+}
+
+/** The bare "12:34" left before the start, for the ring's centre (null once it has started). */
+export function timeLeft(startsAt: string, nowMs: number): string | null {
+    const left = Math.ceil((Date.parse(startsAt) - nowMs) / 1000);
+    return left > 0 ? formatMmSs(left) : null;
+}
+
 export interface DoctorDelay {
     /** Seconds since the start time. */
     elapsedSeconds: number;

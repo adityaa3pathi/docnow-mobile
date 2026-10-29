@@ -1,486 +1,368 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
 import {
-  FlatList,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+  BadgeCheck,
+  Bell,
+  ChevronDown,
+  ChevronRight,
+  FlaskConical,
+  Home as HomeIcon,
+  MapPin,
+  Search,
+  ShieldCheck,
+  ShoppingCart,
+  Stethoscope,
+} from 'lucide-react-native';
+import React, { useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BookedForYouBanner } from '@/components/consult/family-access';
 import { DoctorCard } from '@/components/consult/doctor-card';
+import { BookedForYouBanner } from '@/components/consult/family-access';
 import { SpecialtyChips } from '@/components/consult/specialty-chips';
-import { EmptyState, ErrorState, LoadingBlock } from '@/components/consult/states';
-import { Colors, Radius } from '@/constants/theme';
+import { ErrorState, LoadingBlock } from '@/components/consult/states';
+import { AddressSheet } from '@/components/tests/address-sheet';
+import { PackageCard } from '@/components/tests/package-card';
+import { PulseDot } from '@/components/ui/pulse-dot';
+import { Colors, PrimaryGradient, Radius, Shadow, Type } from '@/constants/theme';
+import { useServerNow } from '@/hooks/use-server-now';
+import { useAuth } from '@/lib/auth';
 import { consult, friendlyError } from '@/lib/consult/api';
 import { formatRupees } from '@/lib/consult/format';
-import { catalogApi } from '@/lib/tests/api';
+import type { Specialty } from '@/lib/consult/types';
+import { hapticImpact, ImpactFeedbackStyle } from '@/lib/haptics';
+import { pickInitialAddress } from '@/lib/tests/address';
+import { addressesApi, catalogApi } from '@/lib/tests/api';
 import { useCart } from '@/lib/tests/cart-context';
-import type { CatalogItem } from '@/lib/tests/types';
+
+const TOP_DOCTORS = 3;
+const UPCOMING = ['CONFIRMED', 'WAITING', 'IN_PROGRESS'];
+
+type Chip = { label: string } & ({ search: string } | { specialty: RegExp });
+const QUICK_CHIPS: Chip[] = [
+  { label: 'Fever', specialty: /general|physician|family|internal/ },
+  { label: 'Full Body Checkup', search: 'Full Body' },
+  { label: 'Dermatologist', specialty: /derma|skin/ },
+  { label: 'Diabetes', search: 'Diabetes' },
+];
+
+const openDoctors = (specialty?: string) => router.push({ pathname: '/(tabs)/doctors', params: specialty ? { specialty } : {} });
+
+function runChip(chip: Chip, specialties: Specialty[] | undefined) {
+  hapticImpact(ImpactFeedbackStyle.Light);
+  if ('search' in chip) {
+    router.push({ pathname: '/tests/explore', params: { q: chip.search } });
+    return;
+  }
+  // No matching specialty in this deployment: show every doctor rather than an empty list.
+  const match = specialties?.find((s) => chip.specialty.test(`${s.slug} ${s.name}`.toLowerCase()));
+  openDoctors(match?.id);
+}
+
+function IconButton({ label, onPress, badge, dot, children }: { label: string; onPress: () => void; badge?: number; dot?: boolean; children: React.ReactNode }) {
+  return (
+    <Pressable style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]} onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={4}>
+      {children}
+      {badge ? (
+        <View style={styles.countBadge}>
+          <Text style={styles.countBadgeText}>{badge > 9 ? '9+' : badge}</Text>
+        </View>
+      ) : dot ? (
+        <View style={styles.dotBadge} />
+      ) : null}
+    </Pressable>
+  );
+}
+
+/** Where lab samples get picked up; choosing one here also becomes checkout's starting address. */
+function LocationPill() {
+  const queryClient = useQueryClient();
+  const { preferredAddressId, setPreferredAddressId } = useCart();
+  const [open, setOpen] = useState(false);
+  const addresses = useQuery({ queryKey: ['profile', 'addresses'], queryFn: addressesApi.list, staleTime: 5 * 60_000 });
+  const current = pickInitialAddress(addresses.data ?? [], preferredAddressId);
+  const place = current ? [current.city, current.pincode].filter(Boolean).join(' ') : null;
+
+  return (
+    <>
+      <Pressable
+        style={({ pressed }) => [styles.location, pressed && styles.pressed]}
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={place ? `Sample pickup at ${place}. Change address` : 'Add a sample pickup address'}>
+        <MapPin size={18} color={Colors.primary} strokeWidth={2.4} />
+        <View style={styles.flexShrink}>
+          <Text style={styles.locationKicker}>Sample pickup at</Text>
+          <View style={styles.locationRow}>
+            <Text style={styles.locationText} numberOfLines={1}>{place ?? 'Add address'}</Text>
+            <ChevronDown size={16} color={Colors.foreground} strokeWidth={2.4} />
+          </View>
+        </View>
+      </Pressable>
+      <AddressSheet
+        visible={open}
+        selectedId={current?.id ?? null}
+        onSelect={(a) => {
+          setPreferredAddressId(a.id);
+          setOpen(false);
+          void queryClient.invalidateQueries({ queryKey: ['profile', 'addresses'] });
+        }}
+        onClose={() => {
+          setOpen(false);
+          void queryClient.invalidateQueries({ queryKey: ['profile', 'addresses'] });
+        }}
+      />
+    </>
+  );
+}
+
+function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+  return (
+    <View style={styles.sectionHead}>
+      <Text style={styles.sectionTitle} accessibilityRole="header">{title}</Text>
+      {action && onAction ? (
+        <Pressable style={styles.sectionAction} onPress={onAction} accessibilityRole="button" hitSlop={8}>
+          <Text style={styles.sectionActionText}>{action}</Text>
+          <ChevronRight size={14} color={Colors.primary} strokeWidth={2.6} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const { cartCount, refreshCart } = useCart();
-  const [specialtyId, setSpecialtyId] = useState<string | null>(null);
-  const [featuredPackages, setFeaturedPackages] = useState<CatalogItem[]>([]);
+  const now = useServerNow(60_000);
 
   const specialties = useQuery({ queryKey: ['consult', 'specialties'], queryFn: consult.specialties });
-  const doctors = useQuery({
-    queryKey: ['consult', 'doctors', specialtyId],
-    queryFn: () => consult.doctors(specialtyId ?? undefined),
+  const doctors = useQuery({ queryKey: ['consult', 'doctors', null], queryFn: () => consult.doctors() });
+  const packages = useQuery({
+    queryKey: ['tests', 'featured', 'PACKAGE'],
+    queryFn: () => catalogApi.featured({ type: 'PACKAGE', limit: 6 }),
+    select: (res) => res?.products ?? [],
   });
+  const bookings = useQuery({ queryKey: ['consult', 'bookings'], queryFn: consult.bookings, staleTime: 30_000 });
 
-  useEffect(() => {
-    catalogApi.featured({ type: 'PACKAGE', limit: 4 }).then((res) => {
-      setFeaturedPackages(res?.products || []);
-    }).catch(() => {});
-  }, []);
+  const upcoming = (bookings.data ?? []).filter((b) => UPCOMING.includes(b.status) && Date.parse(b.endsAt) > now).length;
+  const fees = (doctors.data ?? []).map((d) => d.consultationFee).filter((f) => f > 0);
+  const doctorCount = doctors.data?.length ?? 0;
+  const first = user?.name?.trim().split(/\s+/)[0];
 
   const refresh = () => {
     void specialties.refetch();
     void doctors.refetch();
+    void packages.refetch();
+    void bookings.refetch();
     void refreshCart();
   };
 
-  const header = (
-    <View style={styles.headerContainer}>
-      {/* Top App Bar */}
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <View style={styles.brandRow}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoBadgeText}>DN</Text>
-          </View>
-          <View>
-            <Text style={styles.brandName}>DocNow</Text>
-            <Text style={styles.brandTagline}>Healthcare delivered home</Text>
-          </View>
+        <LocationPill />
+        <View style={styles.topActions}>
+          <IconButton label={upcoming ? `My consultations, ${upcoming} upcoming` : 'My consultations'} onPress={() => router.push('/consult/my')} dot={upcoming > 0}>
+            <Bell size={22} color={Colors.foreground} strokeWidth={2} />
+          </IconButton>
+          <IconButton label={cartCount ? `Cart, ${cartCount} ${cartCount === 1 ? 'item' : 'items'}` : 'Cart'} onPress={() => router.push('/(tabs)/tests')} badge={cartCount}>
+            <ShoppingCart size={22} color={Colors.foreground} strokeWidth={2} />
+          </IconButton>
         </View>
-
-        <Pressable
-          style={styles.cartIconBtn}
-          onPress={() => router.push('/(tabs)/tests')}>
-          <Text style={styles.cartIconText}>🛒</Text>
-          {cartCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartCount}</Text>
-            </View>
-          )}
-        </Pressable>
       </View>
 
-      {/* A family member booked a consultation for this user: one tap to join. */}
-      <BookedForYouBanner />
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={doctors.isRefetching} onRefresh={refresh} tintColor={Colors.primary} />}>
+        <View style={styles.hero}>
+          <Text style={styles.greeting}>{first ? `Hello, ${first}` : 'Hello there'}</Text>
+          <Text style={styles.headline}>How can we help you today?</Text>
 
-      {/* Universal Search Bar */}
-      <Pressable
-        style={styles.searchBar}
-        onPress={() => router.push('/tests/explore')}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <Text style={styles.searchPlaceholder}>Search doctors, tests, packages, symptoms...</Text>
-      </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.search, pressed && styles.pressed]}
+            onPress={() => router.push('/tests/explore')}
+            accessibilityRole="search"
+            accessibilityLabel="Search lab tests and health packages">
+            <Search size={20} color={Colors.primary} strokeWidth={2.4} />
+            <Text style={styles.searchText} numberOfLines={1}>Search lab tests & health packages</Text>
+          </Pressable>
 
-      {/* Hero 2-Action Cards Grid */}
-      <View style={styles.heroGrid}>
-        <Pressable
-          style={[styles.heroCard, { backgroundColor: Colors.primary }]}
-          onPress={() => {
-            // Smoothly scrolls or highlights doctors section
-          }}>
-          <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeText}>INSTANT</Text>
-          </View>
-          <Text style={styles.heroEmoji}>👨‍⚕️</Text>
-          <Text style={styles.heroTitle}>Consult Doctor</Text>
-          <Text style={styles.heroSub}>Video call in 15 mins</Text>
-        </Pressable>
-
-        <Pressable
-          style={[styles.heroCard, { backgroundColor: '#38166D' }]}
-          onPress={() => router.push('/tests/explore')}>
-          <View style={[styles.heroBadge, { backgroundColor: Colors.teal }]}>
-            <Text style={styles.heroBadgeText}>AT HOME</Text>
-          </View>
-          <Text style={styles.heroEmoji}>🧪</Text>
-          <Text style={styles.heroTitle}>Book Lab Tests</Text>
-          <Text style={styles.heroSub}>Sample pickup at home</Text>
-        </Pressable>
-      </View>
-
-      {/* Trust Ticker */}
-      <View style={styles.trustTicker}>
-        <Text style={styles.trustText}>✓ 100% Certified Doctors</Text>
-        <Text style={styles.trustDot}>•</Text>
-        <Text style={styles.trustText}>NABL Accredited Labs</Text>
-        <Text style={styles.trustDot}>•</Text>
-        <Text style={styles.trustText}>Safe Home Sample Pickup</Text>
-      </View>
-
-      {/* Popular Health Packages Carousel */}
-      {featuredPackages.length > 0 && (
-        <View style={styles.packageSection}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Popular Health Packages</Text>
-            <Pressable onPress={() => router.push('/tests/explore')}>
-              <Text style={styles.viewAllText}>View All ›</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.packageScroll}>
-            {featuredPackages.map((pkg) => {
-              const price = pkg.discountedPrice ?? pkg.displayPrice;
-              return (
-                <Pressable
-                  key={pkg.id}
-                  style={styles.packageCard}
-                  onPress={() => router.push({ pathname: '/tests/[code]', params: { code: pkg.partnerCode } })}>
-                  <View style={styles.pkgTop}>
-                    <Text style={styles.pkgName} numberOfLines={1}>{pkg.name}</Text>
-                    {pkg.parameters && (
-                      <View style={styles.pkgParamBadge}>
-                        <Text style={styles.pkgParamText}>{pkg.parameters}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.pkgDesc} numberOfLines={2}>{pkg.description || 'Comprehensive preventative full body health analysis.'}</Text>
-                  <View style={styles.pkgFooter}>
-                    <Text style={styles.pkgPrice}>{formatRupees(price)}</Text>
-                    <View style={styles.bookSmallBtn}>
-                      <Text style={styles.bookSmallText}>Book</Text>
-                    </View>
-                  </View>
-                </Pressable>
-              );
-            })}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {QUICK_CHIPS.map((c) => (
+              <Pressable
+                key={c.label}
+                testID={`quick-${c.label}`}
+                style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
+                onPress={() => runChip(c, specialties.data)}
+                accessibilityRole="button">
+                <Text style={styles.chipText}>{c.label}</Text>
+              </Pressable>
+            ))}
           </ScrollView>
         </View>
-      )}
 
-      {/* Specialty Filter Header */}
-      <View style={styles.specialtySection}>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Doctors by Specialty</Text>
-          <Pressable onPress={() => router.push('/consult/my')}>
-            <Text style={styles.viewAllText}>My Consultations ›</Text>
+        <BookedForYouBanner />
+
+        <View style={styles.services}>
+          <Pressable
+            testID="service-consult"
+            style={({ pressed }) => [styles.serviceWrap, pressed && styles.pressed]}
+            onPress={() => openDoctors()}
+            accessibilityRole="button"
+            accessibilityLabel="Doctor consultation on video">
+            <LinearGradient colors={PrimaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.service, Shadow.raised]}>
+              <View style={styles.liveBadge}>
+                <PulseDot color="#4ADE80" size={7} />
+                <Text style={styles.liveText}>VIDEO</Text>
+              </View>
+              <View style={styles.serviceIconLight}>
+                <Stethoscope size={26} color={Colors.primary} strokeWidth={2.2} />
+              </View>
+              <Text style={styles.serviceTitleLight}>Doctor Consult</Text>
+              <Text style={styles.serviceSubLight} numberOfLines={2}>
+                {doctorCount
+                  ? `${doctorCount} verified ${doctorCount === 1 ? 'doctor' : 'doctors'}${fees.length ? ` · from ${formatRupees(Math.min(...fees))}` : ''}`
+                  : 'Video call with verified doctors'}
+              </Text>
+            </LinearGradient>
+          </Pressable>
+
+          <Pressable
+            testID="service-tests"
+            style={({ pressed }) => [styles.serviceWrap, pressed && styles.pressed]}
+            onPress={() => router.push('/tests/explore')}
+            accessibilityRole="button"
+            accessibilityLabel="Lab tests with home sample pickup">
+            <View style={[styles.service, styles.serviceLight, Shadow.card]}>
+              <View style={styles.homeBadge}>
+                <HomeIcon size={11} color={Colors.teal} strokeWidth={2.6} />
+                <Text style={styles.homeBadgeText}>AT HOME</Text>
+              </View>
+              <View style={styles.serviceIconTeal}>
+                <FlaskConical size={26} color={Colors.teal} strokeWidth={2.2} />
+              </View>
+              <Text style={styles.serviceTitle}>Lab Tests at Home</Text>
+              <Text style={styles.serviceSub} numberOfLines={2}>Sample pickup from your home</Text>
+            </View>
           </Pressable>
         </View>
 
+        <View style={styles.trust}>
+          <View style={styles.trustItem}>
+            <BadgeCheck size={15} color={Colors.primary} strokeWidth={2.4} />
+            <Text style={styles.trustText}>Certified Doctors</Text>
+          </View>
+          <View style={styles.trustItem}>
+            <ShieldCheck size={15} color={Colors.primary} strokeWidth={2.4} />
+            <Text style={styles.trustText}>NABL Accredited Labs</Text>
+          </View>
+        </View>
+
         {specialties.data && specialties.data.length > 0 ? (
-          <View style={styles.chipsWrap}>
-            <SpecialtyChips specialties={specialties.data} value={specialtyId} onChange={setSpecialtyId} />
+          <View style={styles.section}>
+            <SectionHeader title="Find Doctors by Specialty" action="See all" onAction={() => openDoctors()} />
+            <SpecialtyChips specialties={specialties.data} value={null} onChange={(id) => openDoctors(id ?? undefined)} showAll={false} />
           </View>
         ) : null}
-      </View>
-    </View>
-  );
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <FlatList
-        style={styles.list}
-        contentContainerStyle={styles.content}
-        data={doctors.isLoading || doctors.error ? [] : (doctors.data ?? [])}
-        keyExtractor={(d) => d.id}
-        renderItem={({ item }) => (
-          <View style={styles.cardWrap}>
-            <DoctorCard doctor={item} />
+        {packages.data && packages.data.length > 0 ? (
+          <View style={styles.section}>
+            <SectionHeader title="Popular Health Packages" action="View all" onAction={() => router.push('/tests/explore')} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
+              {packages.data.map((p) => (
+                <PackageCard key={p.id} item={p} />
+              ))}
+            </ScrollView>
           </View>
-        )}
-        ListHeaderComponent={header}
-        ListEmptyComponent={
-          <View style={styles.cardWrap}>
+        ) : null}
+
+        <View style={styles.section}>
+          <SectionHeader title="Top Doctors" action={doctorCount > TOP_DOCTORS ? `All ${doctorCount}` : undefined} onAction={() => openDoctors()} />
+          <View style={styles.doctorList}>
             {doctors.isLoading ? <LoadingBlock label="Loading verified doctors..." /> : null}
             {doctors.error ? <ErrorState message={friendlyError(doctors.error)} onRetry={() => void doctors.refetch()} /> : null}
-            {!doctors.isLoading && !doctors.error ? (
-              <EmptyState
-                title="No doctors found"
-                body={specialtyId ? 'No doctors are available for this specialty right now.' : 'No doctors are currently available. Please check back soon.'}
-                action={
-                  specialtyId ? (
-                    <Pressable onPress={() => setSpecialtyId(null)}>
-                      <Text style={styles.showAllLink}>Show all doctors</Text>
-                    </Pressable>
-                  ) : undefined
-                }
-              />
-            ) : null}
+            {(doctors.data ?? []).slice(0, TOP_DOCTORS).map((d) => (
+              <DoctorCard key={d.id} doctor={d} />
+            ))}
+            {doctors.data && doctors.data.length === 0 ? <Text style={styles.empty}>No doctors are available right now. Please check back soon.</Text> : null}
           </View>
-        }
-        refreshControl={<RefreshControl refreshing={doctors.isRefetching} onRefresh={refresh} tintColor={Colors.primary} />}
-      />
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  list: {
-    flex: 1,
-  },
-  content: {
-    paddingBottom: 40,
-  },
-  headerContainer: {
-    paddingBottom: 10,
-  },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.card,
-  },
-  brandRow: {
+  container: { flex: 1, backgroundColor: Colors.background },
+  flex: { flex: 1 },
+  flexShrink: { flexShrink: 1 },
+  content: { paddingBottom: 32 },
+  pressed: { opacity: 0.85 },
+
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.card },
+  location: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minHeight: 44, paddingRight: 8 },
+  locationKicker: { fontSize: 11, fontWeight: '600', color: Colors.mutedForeground },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  locationText: { fontSize: Type.body + 1, fontWeight: '800', color: Colors.foreground, flexShrink: 1 },
+  topActions: { flexDirection: 'row', gap: 4 },
+  iconBtn: { width: 44, height: 44, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
+  countBadge: { position: 'absolute', top: 4, right: 2, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.destructive, borderWidth: 2, borderColor: Colors.card },
+  countBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  dotBadge: { position: 'absolute', top: 10, right: 11, width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.destructive, borderWidth: 2, borderColor: Colors.card },
+
+  hero: { gap: 10, paddingTop: 8, paddingBottom: 16, backgroundColor: Colors.card, borderBottomLeftRadius: Radius.xxl, borderBottomRightRadius: Radius.xxl },
+  greeting: { paddingHorizontal: 16, fontSize: Type.body, fontWeight: '600', color: Colors.mutedForeground },
+  headline: { paddingHorizontal: 16, fontSize: Type.hero, fontWeight: '800', color: Colors.foreground, marginTop: -6 },
+  search: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  logoBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoBadgeText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  brandName: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.foreground,
-  },
-  brandTagline: {
-    fontSize: 11,
-    color: Colors.mutedForeground,
-  },
-  cartIconBtn: {
-    position: 'relative',
-    padding: 6,
-  },
-  cartIconText: {
-    fontSize: 22,
-  },
-  cartBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.full,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  cartBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.card,
+    minHeight: 52,
     marginHorizontal: 16,
-    marginTop: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
-    gap: 10,
-  },
-  searchIcon: {
-    fontSize: 16,
-  },
-  searchPlaceholder: {
-    fontSize: 13,
-    color: Colors.mutedForeground,
-    flex: 1,
-  },
-  heroGrid: {
-    flexDirection: 'row',
-    gap: 12,
+    marginTop: 4,
     paddingHorizontal: 16,
-    marginTop: 16,
-  },
-  heroCard: {
-    flex: 1,
-    borderRadius: Radius.lg,
-    padding: 16,
-    position: 'relative',
-    minHeight: 125,
-    justifyContent: 'flex-end',
-    shadowColor: '#000',
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.primarySubtle,
+    backgroundColor: Colors.card,
+    ...Shadow.raised,
     shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
   },
-  heroBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: Radius.xs,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  heroBadgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  heroEmoji: {
-    fontSize: 28,
-    marginBottom: 6,
-  },
-  heroTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#fff',
-  },
-  heroSub: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 2,
-  },
-  trustTicker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primaryTint,
-    marginHorizontal: 16,
-    marginTop: 14,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: Radius.md,
-    gap: 8,
-  },
-  trustText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  trustDot: {
-    fontSize: 10,
-    color: Colors.primary,
-  },
-  packageSection: {
-    marginTop: 20,
-    paddingLeft: 16,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingRight: 16,
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: Colors.foreground,
-  },
-  viewAllText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  packageScroll: {
-    flexDirection: 'row',
-    paddingRight: 16,
-  },
-  packageCard: {
-    width: 210,
-    backgroundColor: Colors.card,
-    borderRadius: Radius.lg,
-    padding: 14,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'space-between',
-  },
-  pkgTop: {
-    marginBottom: 6,
-  },
-  pkgName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.foreground,
-  },
-  pkgParamBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.tealTint,
-    borderRadius: Radius.xs,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginTop: 4,
-  },
-  pkgParamText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.teal,
-  },
-  pkgDesc: {
-    fontSize: 11,
-    color: Colors.mutedForeground,
-    lineHeight: 15,
-  },
-  pkgFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
-  },
-  pkgPrice: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.foreground,
-  },
-  bookSmallBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.sm,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  bookSmallText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  specialtySection: {
-    marginTop: 20,
-    paddingHorizontal: 16,
-  },
-  chipsWrap: {
-    marginTop: 4,
-  },
-  cardWrap: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  showAllLink: {
-    color: Colors.primary,
-    fontWeight: '700',
-    fontSize: 14,
-  },
+  searchText: { flex: 1, fontSize: Type.body, color: Colors.mutedForeground },
+  chips: { gap: 8, paddingHorizontal: 16 },
+  chip: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 14, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.primarySubtle, backgroundColor: Colors.primaryTint },
+  chipPressed: { backgroundColor: Colors.primarySubtle },
+  chipText: { fontSize: Type.caption + 1, fontWeight: '700', color: Colors.primary },
+
+  services: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, marginTop: 16 },
+  serviceWrap: { flex: 1 },
+  service: { flex: 1, minHeight: 164, padding: 14, gap: 4, borderRadius: Radius.xl, justifyContent: 'flex-end' },
+  serviceLight: { backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.tealTint, borderTopWidth: 4, borderTopColor: Colors.teal },
+  liveBadge: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.full, backgroundColor: 'rgba(255, 255, 255, 0.18)' },
+  liveText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.6 },
+  homeBadge: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.full, backgroundColor: Colors.tealTint },
+  homeBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.teal, letterSpacing: 0.6 },
+  serviceIconLight: { width: 48, height: 48, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', marginBottom: 8 },
+  serviceIconTeal: { width: 48, height: 48, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.tealTint, marginBottom: 8 },
+  serviceTitleLight: { fontSize: Type.title + 1, fontWeight: '800', color: '#fff' },
+  serviceSubLight: { fontSize: Type.caption, color: 'rgba(255, 255, 255, 0.85)', lineHeight: 16 },
+  serviceTitle: { fontSize: Type.title + 1, fontWeight: '800', color: Colors.foreground },
+  serviceSub: { fontSize: Type.caption, color: Colors.mutedForeground, lineHeight: 16 },
+
+  trust: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginHorizontal: 16, marginTop: 14, paddingVertical: 10, borderRadius: Radius.lg, backgroundColor: Colors.primaryTint },
+  trustItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  trustText: { fontSize: Type.caption, fontWeight: '700', color: Colors.primary },
+
+  section: { marginTop: 24, gap: 12 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  sectionTitle: { fontSize: Type.title + 2, fontWeight: '800', color: Colors.foreground },
+  sectionAction: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 32 },
+  sectionActionText: { fontSize: Type.caption + 1, fontWeight: '800', color: Colors.primary },
+  carousel: { gap: 12, paddingHorizontal: 16, paddingBottom: 6 },
+  doctorList: { gap: 12, paddingHorizontal: 16 },
+  empty: { fontSize: Type.body, color: Colors.mutedForeground },
 });

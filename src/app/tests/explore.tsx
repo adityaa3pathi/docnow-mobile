@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -31,7 +31,9 @@ const TYPES = [
 export default function ExploreTestsScreen() {
   const insets = useSafeAreaInsets();
   const { cartCount, addToCart, getItemCount } = useCart();
-  const [search, setSearch] = useState('');
+  // Home's quick chips ("Full Body Checkup", "Diabetes") open this screen pre-searched.
+  const { q } = useLocalSearchParams<{ q?: string }>();
+  const [search, setSearch] = useState(q ?? '');
   const [selectedType, setSelectedType] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
 
