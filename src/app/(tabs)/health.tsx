@@ -1,10 +1,8 @@
 import { router, useFocusEffect } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -16,7 +14,7 @@ import { Colors, Radius } from '@/constants/theme';
 import { consult } from '@/lib/consult/api';
 import { formatRupees } from '@/lib/consult/format';
 import type { BookingView } from '@/lib/consult/types';
-import { bookingsApi, reportsApi } from '@/lib/tests/api';
+import { bookingsApi } from '@/lib/tests/api';
 import type { TestBooking } from '@/lib/tests/types';
 
 export default function HealthScreen() {
@@ -47,13 +45,9 @@ export default function HealthScreen() {
     }, [fetchData]),
   );
 
-  const handleDownloadReport = async (reportId: string) => {
-    const url = reportsApi.downloadUrl(reportId);
-    try {
-      await WebBrowser.openBrowserAsync(url);
-    } catch {
-      Linking.openURL(url).catch(() => {});
-    }
+  // The download URL needs the sign-in header, which a browser does not send; the viewer uses a signed link.
+  const handleDownloadReport = (reportId: string) => {
+    router.push({ pathname: '/records/report/[id]', params: { id: reportId } });
   };
 
   return (

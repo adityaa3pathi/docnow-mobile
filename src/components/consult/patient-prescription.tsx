@@ -1,11 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Radius } from '@/constants/theme';
 import { consult, friendlyError } from '@/lib/consult/api';
+import { ALREADY_IN_CART, cartFunnel } from '@/lib/consult/recommendedTests';
 import type { CartAddResult } from '@/lib/consult/types';
+import { hapticImpact, hapticNotify, ImpactFeedbackStyle, NotificationFeedbackType } from '@/lib/haptics';
+import { useCart } from '@/lib/tests/cart-context';
 import { PrescriptionView } from './prescription-view';
 import { ErrorState, LoadingBlock } from './states';
 
@@ -22,6 +26,7 @@ export function PatientPrescription({ bookingId }: Props) {
   const [busyAction, setBusyAction] = useState<'pdf' | 'cart' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [cartResult, setCartResult] = useState<CartAddResult | null>(null);
+  const { refreshCart } = useCart();
 
   async function openPdf() {
     setBusyAction('pdf');
@@ -41,8 +46,13 @@ export function PatientPrescription({ bookingId }: Props) {
     setActionError(null);
     try {
       const res = await consult.addTestsToCart(bookingId);
+      // The header badge, cart tab and floating bar all read the shared cart, so sync it now.
+      await refreshCart();
       setCartResult(res);
+      const placed = res.added.length > 0 || res.skipped.some((s) => s.reason === ALREADY_IN_CART);
+      hapticNotify(placed ? NotificationFeedbackType.Success : NotificationFeedbackType.Warning);
     } catch (e) {
+      hapticNotify(NotificationFeedbackType.Error);
       setActionError(friendlyError(e, 'Could not add tests to cart.'));
     } finally {
       setBusyAction(null);
@@ -55,6 +65,8 @@ export function PatientPrescription({ bookingId }: Props) {
   }
 
   const hasTests = data.recommendedTests && data.recommendedTests.length > 0;
+  const funnel = cartResult ? cartFunnel(cartResult, data.recommendedTests) : null;
+  const inCart = funnel?.cta != null;
 
   return (
     <View style={styles.card}>
@@ -77,15 +89,16 @@ export function PatientPrescription({ bookingId }: Props) {
 
         {hasTests ? (
           <Pressable
-            style={[styles.primaryButton, busyAction !== null && styles.disabled]}
-            disabled={busyAction !== null}
+            style={[styles.primaryButton, (busyAction !== null || inCart) && styles.disabled]}
+            disabled={busyAction !== null || inCart}
             onPress={addTests}
+            testID="rx-book-all"
             accessibilityRole="button"
-            accessibilityLabel="Add recommended tests to cart">
+            accessibilityLabel={inCart ? 'Recommended tests are in your cart' : 'Add recommended tests to cart'}>
             {busyAction === 'cart' ? (
               <ActivityIndicator size="small" color={Colors.primaryForeground} />
             ) : (
-              <Text style={styles.primaryText}>Book All Tests</Text>
+              <Text style={styles.primaryText}>{inCart ? '✓ In Cart' : 'Book All Tests'}</Text>
             )}
           </Pressable>
         ) : null}
@@ -97,18 +110,44 @@ export function PatientPrescription({ bookingId }: Props) {
         </View>
       ) : null}
 
-      {cartResult ? (
-        <View style={styles.cartBox} accessibilityLiveRegion="polite">
-          {cartResult.added.length > 0 ? (
-            <Text style={styles.cartSuccess}>
-              Tests added to cart: {cartResult.added.join(', ')}
-            </Text>
+      {funnel ? (
+        <View style={[styles.funnel, !funnel.cta && styles.funnelMuted]} accessibilityLiveRegion="polite" testID="rx-cart-funnel">
+          <Text style={[styles.funnelHeadline, !funnel.cta && styles.funnelHeadlineMuted]} accessibilityRole="header">
+            {funnel.headline}
+          </Text>
+          {funnel.added.length || funnel.alreadyInCart.length ? (
+            <View style={styles.pills}>
+              {funnel.added.map((t) => (
+                <View key={t.code} style={styles.pill}>
+                  <Text style={styles.pillText}>{t.name}</Text>
+                </View>
+              ))}
+              {funnel.alreadyInCart.map((t) => (
+                <View key={t.code} style={[styles.pill, styles.pillMuted]}>
+                  <Text style={[styles.pillText, styles.pillTextMuted]}>{t.name} · in cart</Text>
+                </View>
+              ))}
+            </View>
           ) : null}
-          {cartResult.skipped.map((s) => (
-            <Text key={s.code} style={styles.cartSkipped}>
-              {s.code}: {s.reason}
+          {funnel.unavailable.map(({ test, reason }) => (
+            <Text key={test.code} style={styles.cartSkipped}>
+              {test.name}: {reason}
             </Text>
           ))}
+          {funnel.cta ? (
+            <Pressable
+              style={({ pressed }) => [styles.ctaButton, pressed && styles.pressed]}
+              testID="rx-cart-cta"
+              onPress={() => {
+                hapticImpact(ImpactFeedbackStyle.Medium);
+                router.push(funnel.cta!.href);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={funnel.cta.label.replace(' →', '')}>
+              <Text style={styles.ctaText}>{funnel.cta.label}</Text>
+            </Pressable>
+          ) : null}
+          {funnel.cta ? <Text style={styles.ctaHint}>Free home sample collection by certified phlebotomists</Text> : null}
         </View>
       ) : null}
     </View>
@@ -174,16 +213,70 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  cartBox: {
-    padding: 12,
-    borderRadius: Radius.md,
+  funnel: {
+    padding: 16,
+    borderRadius: Radius.xl,
     backgroundColor: Colors.primaryTint,
-    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.primarySubtle,
+    gap: 12,
   },
-  cartSuccess: {
+  funnelMuted: {
+    backgroundColor: Colors.cardMuted,
+    borderColor: Colors.border,
+  },
+  funnelHeadline: {
     color: Colors.primary,
-    fontWeight: '700',
-    fontSize: 13,
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  funnelHeadlineMuted: {
+    color: Colors.foreground,
+  },
+  pills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.primarySubtle,
+  },
+  pillMuted: {
+    borderColor: Colors.border,
+  },
+  pillText: {
+    color: Colors.primary,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  pillTextMuted: {
+    color: Colors.mutedForeground,
+  },
+  ctaButton: {
+    minHeight: 50,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  pressed: {
+    opacity: 0.85,
+  },
+  ctaText: {
+    color: Colors.primaryForeground,
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  ctaHint: {
+    color: Colors.mutedForeground,
+    fontSize: 12,
+    textAlign: 'center',
   },
   cartSkipped: {
     color: Colors.mutedForeground,

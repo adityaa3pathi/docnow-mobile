@@ -134,12 +134,17 @@ export function configureForegroundHandler() {
 
 // ── Push payloads from the server dispatcher ────────────
 
-/** `data` of a push sent by the server: `{ url, channelId, kind, consultationId }`. */
+/**
+ * `data` of a push sent by the server: consultation pushes carry `{ url, channelId, kind,
+ * consultationId }`; lab report pushes carry `{ url, channelId, type: 'LAB_REPORT_READY', reportId }`.
+ */
 export interface PushData {
     url?: string;
     channelId?: string;
     kind?: string;
     consultationId?: string;
+    type?: string;
+    reportId?: string;
 }
 
 /**
@@ -148,7 +153,8 @@ export interface PushData {
  */
 export function queryKeysForPush(data: unknown): (readonly string[])[] {
     if (!data || typeof data !== 'object') return [];
-    const { kind, consultationId } = data as PushData;
+    const { kind, consultationId, type, reportId } = data as PushData;
+    if (type === 'LAB_REPORT_READY' && typeof reportId === 'string' && reportId) return [['reports', 'detail', reportId]];
     if (typeof consultationId !== 'string' || !consultationId) return [];
     if (targetFromNotificationData(data)?.kind === 'doctor-consultation') {
         return [['doctor', 'consultation', consultationId], ['doctor', 'consultations']];

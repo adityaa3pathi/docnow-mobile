@@ -54,7 +54,8 @@
             "./assets/sounds/teleconsult_call.wav"
           ]
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -120,6 +120,7 @@ describe('deep-link parser', () => {
         [`docnow://consult/room/${UUID}`, { kind: 'consult-room', id: UUID }],
         [`docnow://doctor/consultations/${UUID}`, { kind: 'doctor-consultation', id: UUID }],
         [`docnow://records/prescription/${UUID}`, { kind: 'prescription', id: UUID }],
+        ['docnow://records/report/rep-123', { kind: 'report', id: 'rep-123' }],
     ])('parses %s', (url, target) => {
         expect(parseDeepLink(url)).toEqual(target);
     });
@@ -148,7 +149,8 @@ describe('deep-link parser', () => {
         expect(deepLinkPath({ kind: 'consult-room', id: UUID })).toBe(`/consult/booking/${UUID}?join=1`);
         expect(deepLinkPath({ kind: 'doctor-consultation', id: UUID })).toBe(`/doctor/consultations/${UUID}`);
         expect(deepLinkPath({ kind: 'prescription', id: UUID })).toBe(`/consult/prescription/${UUID}`);
-        for (const kind of ['consult-room', 'doctor-consultation', 'prescription'] as const) {
+        expect(deepLinkPath({ kind: 'report', id: 'rep-123' })).toBe('/records/report/rep-123');
+        for (const kind of ['consult-room', 'doctor-consultation', 'prescription', 'report'] as const) {
             expect(parseDeepLink(deepLinkUrl({ kind, id: UUID }))).toEqual({ kind, id: UUID });
         }
     });
@@ -220,6 +222,13 @@ describe('server push payloads', () => {
             ['consult', 'bookings'],
             ['consult', 'prescription', UUID],
         ]);
+    });
+
+    it('refreshes the report viewer when a lab report push arrives', () => {
+        const data = { url: 'docnow://records/report/rep-123', channelId: 'prescriptions-reports', type: 'LAB_REPORT_READY', reportId: 'rep-123' };
+        expect(queryKeysForPush(data)).toEqual([['reports', 'detail', 'rep-123']]);
+        expect(targetFromNotificationData(data)).toEqual({ kind: 'report', id: 'rep-123' });
+        expect(redirectSystemPath({ path: 'docnow://records/report/rep-123', initial: true })).toBe('/records/report/rep-123');
     });
 
     it('ignores payloads that are not from the dispatcher', () => {

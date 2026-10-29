@@ -11,6 +11,7 @@ import type {
   Patient,
   PreCheckoutValidation,
   PromoValidationResult,
+  ReportDetail,
   Slot,
   TestBooking,
   VerifyPaymentParams,
@@ -272,6 +273,16 @@ export const reportsApi = {
 
   downloadUrl: (reportId: string): string => {
     return `${process.env.EXPO_PUBLIC_API_URL || ''}/api/reports/${reportId}/download`;
+  },
+
+  detail: async (reportId: string): Promise<ReportDetail> => {
+    const { data } = await api.get(`/api/reports/${reportId}`, { timeout: 10_000 });
+    return data;
+  },
+
+  /** A link that opens the PDF without sign-in headers, for the in-app browser and downloads. */
+  publicUrl: (viewToken: string): string => {
+    return `${process.env.EXPO_PUBLIC_API_URL || ''}/api/reports/public/${viewToken}`;
   },
 };
 

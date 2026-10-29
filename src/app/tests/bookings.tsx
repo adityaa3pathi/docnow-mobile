@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors, Radius } from '@/constants/theme';
 import { formatRupees } from '@/lib/consult/format';
-import { bookingsApi, invoicesApi, reportsApi } from '@/lib/tests/api';
+import { bookingsApi, invoicesApi } from '@/lib/tests/api';
 import type { TestBooking } from '@/lib/tests/types';
 
 export default function TestBookingsScreen() {
@@ -82,15 +82,9 @@ export default function TestBookingsScreen() {
     ]);
   };
 
-  const handleDownloadReport = async (reportId: string) => {
-    const url = reportsApi.downloadUrl(reportId);
-    try {
-      await WebBrowser.openBrowserAsync(url);
-    } catch {
-      Linking.openURL(url).catch(() => {
-        Alert.alert('Download Error', 'Could not open the report link.');
-      });
-    }
+  // The download URL needs the sign-in header, which a browser does not send; the viewer uses a signed link.
+  const handleDownloadReport = (reportId: string) => {
+    router.push({ pathname: '/records/report/[id]', params: { id: reportId } });
   };
 
   const handleDownloadInvoice = async (bookingId: string) => {

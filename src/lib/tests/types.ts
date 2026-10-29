@@ -174,6 +174,24 @@ export interface BookingReport {
   generatedAt: string;
 }
 
+/** GET /api/reports/:reportId — one report for the in-app viewer. */
+export interface ReportDetail {
+  id: string;
+  bookingId: string;
+  isFullReport: boolean;
+  /** PENDING | STORED | FAILED. The download still works while PENDING: the server fetches on demand. */
+  fetchStatus: string;
+  verifiedAt: string | null;
+  generatedAt: string;
+  fileSize: number | null;
+  /** Booking slot date, YYYY-MM-DD. */
+  collectedOn: string;
+  patientName: string | null;
+  tests: string[];
+  /** Opens /api/reports/public/:token without an Authorization header. Expires (72 h by default). */
+  viewToken: string;
+}
+
 export interface TestBooking {
   id: string;
   userId: string;

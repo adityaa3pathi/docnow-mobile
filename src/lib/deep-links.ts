@@ -5,13 +5,15 @@
  *   docnow://consult/room/<consultationId>         patient enters the video room
  *   docnow://doctor/consultations/<consultationId> doctor opens the consultation workspace
  *   docnow://records/prescription/<consultationId> patient opens the issued prescription
+ *   docnow://records/report/<reportId>             patient opens a lab report
  */
 export const DEEP_LINK_SCHEME = 'docnow';
 
 export type DeepLinkTarget =
     | { kind: 'consult-room'; id: string }
     | { kind: 'doctor-consultation'; id: string }
-    | { kind: 'prescription'; id: string };
+    | { kind: 'prescription'; id: string }
+    | { kind: 'report'; id: string };
 
 // Consultation ids are UUIDs; the looser pattern still refuses slashes, dots and encoded characters.
 const ID = /^[A-Za-z0-9-]{1,64}$/;
@@ -20,6 +22,7 @@ const ROUTES: { prefix: readonly string[]; kind: DeepLinkTarget['kind'] }[] = [
     { prefix: ['consult', 'room'], kind: 'consult-room' },
     { prefix: ['doctor', 'consultations'], kind: 'doctor-consultation' },
     { prefix: ['records', 'prescription'], kind: 'prescription' },
+    { prefix: ['records', 'report'], kind: 'report' },
 ];
 
 /** Strips scheme, host-less slashes, Expo Go's `/--/` prefix, query and hash, leaving `a/b/c`. */
@@ -58,12 +61,19 @@ export function deepLinkPath(target: DeepLinkTarget): string {
             return `/doctor/consultations/${target.id}`;
         case 'prescription':
             return `/consult/prescription/${target.id}`;
+        case 'report':
+            return `/records/report/${target.id}`;
     }
 }
 
 /** The public link for a target, for the server or share sheets to send. */
 export function deepLinkUrl(target: DeepLinkTarget): string {
-    const segment = { 'consult-room': 'consult/room', 'doctor-consultation': 'doctor/consultations', prescription: 'records/prescription' }[target.kind];
+    const segment = {
+        'consult-room': 'consult/room',
+        'doctor-consultation': 'doctor/consultations',
+        prescription: 'records/prescription',
+        report: 'records/report',
+    }[target.kind];
     return `${DEEP_LINK_SCHEME}://${segment}/${target.id}`;
 }
 

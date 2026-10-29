@@ -45,6 +45,7 @@ function Routes() {
           <Stack.Screen name="consult" />
           <Stack.Screen name="doctor" />
           <Stack.Screen name="tests" />
+          <Stack.Screen name="records" />
         </Stack.Protected>
         <Stack.Protected guard={!user}>
           <Stack.Screen name="login" />
