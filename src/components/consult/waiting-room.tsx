@@ -154,6 +154,7 @@ export function WaitingRoom({ booking, join, onJoined, inCall, autoJoin = false,
                 toggle(item.id);
               }}
               accessibilityRole="checkbox"
+              aria-checked={on}
               accessibilityState={{ checked: on }}
               accessibilityLabel={item.label}>
               <View style={[styles.box, on && styles.boxOn]}>{on ? <Text style={styles.tick}>✓</Text> : null}</View>
