@@ -8,6 +8,21 @@ export const MEDICINE_SUGGESTIONS = ['Metformin 500mg', 'Amlodipine 5mg', 'Thyro
 /** "None" is its own answer: it clears the other chips, and any chip clears it. */
 export const NONE = 'None';
 export const MAX_REPORTS = 5;
+/** Photos / PDFs per booking, and the largest one the server takes. */
+export const MAX_DOCUMENTS = 5;
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+/** A record being attached: shown at once from the phone's copy, usable once the upload finished. */
+export interface IntakeDocument {
+    key: string;
+    previewUri: string;
+    name: string;
+    mimeType: string;
+    status: 'uploading' | 'ready' | 'failed';
+    /** Set once uploaded. */
+    id?: string;
+    error?: string;
+}
 
 export const isFamilyPerson = (p: Pick<Person, 'relation'>) => p.relation.trim().toLowerCase() !== 'self';
 
@@ -43,6 +58,7 @@ export interface IntakeDraft {
     currentMedications: string[];
     isCaregiverJoined: boolean;
     attachedReportIds: string[];
+    documents: IntakeDocument[];
 }
 
 export function intakeFromPerson(p: Person): IntakeDraft {
@@ -54,6 +70,7 @@ export function intakeFromPerson(p: Person): IntakeDraft {
         currentMedications: p.currentMedications ?? [],
         isCaregiverJoined: true,
         attachedReportIds: [],
+        documents: [],
     };
 }
 
@@ -61,7 +78,19 @@ export function intakeFromPerson(p: Person): IntakeDraft {
 export function intakeError(d: IntakeDraft): string | null {
     if (d.phone.trim() && !normalizeMobile(d.phone)) return 'Enter a valid 10-digit mobile number for your family member';
     if (d.attachedReportIds.length > MAX_REPORTS) return `Share at most ${MAX_REPORTS} reports`;
+    if (d.documents.some((x) => x.status === 'uploading')) return 'Please wait for your documents to finish uploading';
+    if (d.documents.filter((x) => x.status === 'ready').length > MAX_DOCUMENTS) return `Attach at most ${MAX_DOCUMENTS} documents`;
     return null;
+}
+
+/** The booking's family fields: co-join, DocNow reports, and the uploaded documents (failed ones are left out). */
+export function bookingExtras(d: IntakeDraft): { isCaregiverJoined: boolean; attachedReportIds?: string[]; attachmentIds?: string[] } {
+    const attachmentIds = d.documents.flatMap((x) => (x.status === 'ready' && x.id ? [x.id] : []));
+    return {
+        isCaregiverJoined: d.isCaregiverJoined,
+        ...(d.attachedReportIds.length ? { attachedReportIds: d.attachedReportIds } : {}),
+        ...(attachmentIds.length ? { attachmentIds } : {}),
+    };
 }
 
 /** The profile part of the intake, saved on the person for all future bookings. */

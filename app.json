@@ -95,6 +95,13 @@
         {
           "microphonePermission": "DocNow uses your microphone so your doctor can hear you during consultations."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "DocNow uses your photos so you can share old prescriptions and reports with your doctor.",
+          "cameraPermission": "DocNow uses your camera so you can photograph prescriptions and reports for your doctor."
+        }
       ]
     ],
     "experiments": {

@@ -15,6 +15,9 @@ interface CartContextValue {
   assignPatient: (itemId: string, patientId: string | null) => Promise<boolean>;
   clearCart: () => Promise<void>;
   getItemCount: (testCode: string) => number;
+  /** Address checkout should start with (set by "Book All Tests" from a prescription). */
+  preferredAddressId: string | null;
+  setPreferredAddressId: (id: string | null) => void;
 }
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
@@ -151,8 +154,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     [items],
   );
 
+  const [preferredAddressId, setPreferredAddressId] = useState<string | null>(null);
+
   const value = useMemo(
     () => ({
+      preferredAddressId,
+      setPreferredAddressId,
       cart,
       items,
       cartCount,
@@ -166,6 +173,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       getItemCount,
     }),
     [
+      preferredAddressId,
       cart,
       items,
       cartCount,

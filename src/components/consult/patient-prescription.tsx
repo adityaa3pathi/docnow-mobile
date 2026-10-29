@@ -26,7 +26,7 @@ export function PatientPrescription({ bookingId }: Props) {
   const [busyAction, setBusyAction] = useState<'pdf' | 'cart' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [cartResult, setCartResult] = useState<CartAddResult | null>(null);
-  const { refreshCart } = useCart();
+  const { refreshCart, setPreferredAddressId } = useCart();
 
   async function openPdf() {
     setBusyAction('pdf');
@@ -47,6 +47,8 @@ export function PatientPrescription({ bookingId }: Props) {
     setActionError(null);
     try {
       const res = await consult.addTestsToCart(bookingId);
+      // Checkout starts at the patient's last collection address, so only the slot is left to choose.
+      if (res.suggestedAddressId) setPreferredAddressId(res.suggestedAddressId);
       // The header badge, cart tab and floating bar all read the shared cart, so sync it now.
       await refreshCart();
       setCartResult(res);
@@ -148,7 +150,13 @@ export function PatientPrescription({ bookingId }: Props) {
               <Text style={styles.ctaText}>{funnel.cta.label}</Text>
             </Pressable>
           ) : null}
-          {funnel.cta ? <Text style={styles.ctaHint}>Free home sample collection by certified phlebotomists</Text> : null}
+          {funnel.cta ? (
+            <Text style={styles.ctaHint}>
+              {cartResult?.suggestedAddressId
+                ? 'We picked the last collection address; you can change it at checkout.'
+                : 'Free home sample collection by certified phlebotomists'}
+            </Text>
+          ) : null}
         </View>
       ) : null}
     </View>

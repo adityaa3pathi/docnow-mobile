@@ -17,11 +17,13 @@ import {
 import { formatIstDay } from '@/lib/consult/time';
 import { hapticImpact, ImpactFeedbackStyle } from '@/lib/haptics';
 import { bookingsApi } from '@/lib/tests/api';
+import { IntakeDocuments } from './intake-documents';
 
 interface Props {
   person: Person;
   value: IntakeDraft;
-  onChange: (next: IntakeDraft) => void;
+  /** Functional, so a background upload finishing later never overwrites newer edits. */
+  onChange: (update: (draft: IntakeDraft) => IntakeDraft) => void;
 }
 
 function Chip({ label, on, onPress, testID }: { label: string; on: boolean; onPress: () => void; testID?: string }) {
@@ -90,7 +92,7 @@ function ReportPicker({ selected, onToggle }: { selected: string[]; onToggle: (i
  */
 export function FamilyIntakeSheet({ person, value, onChange }: Props) {
   const [medicine, setMedicine] = useState('');
-  const set = (patch: Partial<IntakeDraft>) => onChange({ ...value, ...patch });
+  const set = (patch: Partial<IntakeDraft>) => onChange((d) => ({ ...d, ...patch }));
   const first = person.name.trim().split(/\s+/)[0] || person.name;
 
   function addMedicine(name: string) {
@@ -196,15 +198,16 @@ export function FamilyIntakeSheet({ person, value, onChange }: Props) {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.label}>Share reports with the doctor</Text>
+        <Text style={styles.label}>Attach Past Records</Text>
+        <IntakeDocuments documents={value.documents} onUpdate={(fn) => onChange((d) => ({ ...d, documents: fn(d.documents) }))} />
+        <Text style={styles.subLabel}>Or select from DocNow Reports</Text>
         <ReportPicker
           selected={value.attachedReportIds}
           onToggle={(id) =>
-            set({
-              attachedReportIds: value.attachedReportIds.includes(id)
-                ? value.attachedReportIds.filter((x) => x !== id)
-                : [...value.attachedReportIds, id],
-            })
+            onChange((d) => ({
+              ...d,
+              attachedReportIds: d.attachedReportIds.includes(id) ? d.attachedReportIds.filter((x) => x !== id) : [...d.attachedReportIds, id],
+            }))
           }
         />
       </View>
@@ -235,6 +238,7 @@ const styles = StyleSheet.create({
   familyBadgeText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
   section: { gap: 8 },
   label: { fontSize: 13, fontWeight: '700', color: Colors.foreground },
+  subLabel: { fontSize: 12, fontWeight: '700', color: Colors.mutedForeground, marginTop: 4 },
   hint: { fontSize: 12, color: Colors.mutedForeground, lineHeight: 17 },
   phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   prefix: { fontSize: 15, fontWeight: '700', color: Colors.foreground, paddingHorizontal: 10, paddingVertical: 10, borderRadius: Radius.md, backgroundColor: Colors.cardMuted },

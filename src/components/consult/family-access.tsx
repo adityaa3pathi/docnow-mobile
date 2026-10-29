@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Radius } from '@/constants/theme';
 import { useServerNow } from '@/hooks/use-server-now';
@@ -11,6 +11,29 @@ import { joinWindow } from '@/lib/consult/room';
 import { formatIstDateTime } from '@/lib/consult/time';
 import type { BookingView } from '@/lib/consult/types';
 import { hapticNotify, NotificationFeedbackType } from '@/lib/haptics';
+
+/** The caregiver forwards the zero-install web room link through their own WhatsApp, SMS, etc. */
+export function shareCallLink(booking: Pick<BookingView, 'doctorName' | 'guestJoinUrl'>) {
+  if (!booking.guestJoinUrl) return Promise.resolve(null);
+  const dr = booking.doctorName.startsWith('Dr') ? booking.doctorName : `Dr. ${booking.doctorName}`;
+  // `url` is used by iOS share targets; Android reads the link from the message.
+  return Share.share({ message: `Namaste! ${dr} consultation link: ${booking.guestJoinUrl}`, url: booking.guestJoinUrl });
+}
+
+export function ShareCallLinkButton({ booking }: { booking: Pick<BookingView, 'doctorName' | 'guestJoinUrl' | 'patientName'> }) {
+  if (!booking.guestJoinUrl) return null;
+  const first = booking.patientName.trim().split(/\s+/)[0] || booking.patientName;
+  return (
+    <Pressable
+      testID="share-call-link"
+      style={({ pressed }) => [styles.share, pressed && styles.dim]}
+      onPress={() => void shareCallLink(booking).catch(() => {})}
+      accessibilityRole="button"
+      accessibilityHint="Opens your phone's share sheet">
+      <Text style={styles.shareText}>🔗 Share Call Link with {first}</Text>
+    </Pressable>
+  );
+}
 
 /** Purple "Booked for you by Aditya" badge on consultation cards and pages. */
 export function BookedForYouBadge({ booking }: { booking: BookingView }) {
@@ -123,6 +146,8 @@ const styles = StyleSheet.create({
   secondary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.primary },
   secondaryText: { color: Colors.primary, fontWeight: '700', fontSize: 15 },
   dim: { opacity: 0.6 },
+  share: { minHeight: 48, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.lg, borderWidth: 1.5, borderColor: Colors.primary, backgroundColor: Colors.card },
+  shareText: { fontSize: 15, fontWeight: '700', color: Colors.primary },
   banner: { gap: 4, padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.primary, marginHorizontal: 16, marginTop: 12 },
   bannerKicker: { fontSize: 12, fontWeight: '700', color: 'rgba(255, 255, 255, 0.85)' },
   bannerTitle: { fontSize: 18, fontWeight: '800', color: Colors.primaryForeground },

@@ -92,6 +92,19 @@ export interface BookingView extends CreateBookingResponse {
     bookedBy?: { name: string; relation: string };
     /** Family member's view: `pending` until they accept (doctor and time only, nothing clinical). */
     familyAccess?: 'pending' | 'linked';
+    /** Detail view only: uploaded outside records, with signed links that expire within the hour. */
+    attachments?: ConsultAttachment[];
+}
+
+/** A photo or PDF of an outside record (old prescription, discharge summary, other lab's report). */
+export interface ConsultAttachment {
+    id: string;
+    name: string;
+    mimeType: string;
+    sizeBytes: number;
+    uploadedAt: string;
+    /** Signed; expires within the hour. Re-read the consultation for a fresh one. */
+    url: string;
 }
 
 export interface CreateBookingInput {
@@ -102,6 +115,8 @@ export interface CreateBookingInput {
     isCaregiverJoined?: boolean;
     /** DocNow lab reports to share with the doctor (at most 5). */
     attachedReportIds?: string[];
+    /** Photos / PDFs uploaded just before booking (POST /api/consult/attachments), at most 5. */
+    attachmentIds?: string[];
 }
 
 /** GET /api/consult/guest/:token — what the zero-login room shows before joining. */
@@ -327,6 +342,8 @@ export interface NoteInput {
 export interface CartAddResult {
     added: string[];
     skipped: { code: string; reason: string }[];
+    /** Where the tests will most likely be collected (patient's last address); checkout pre-selects it. */
+    suggestedAddressId?: string | null;
 }
 
 export interface PrescriptionVersion {
@@ -362,6 +379,8 @@ export interface DoctorConsultationRecord {
     caregiver?: { name: string; relation: string; coJoining: boolean; joinedAt: string | null } | null;
     /** Lab reports shared for this consultation; `viewToken` opens /api/reports/public/:token. */
     attachedReports?: { id: string; label: string; isFullReport: boolean; date: string; viewToken: string }[];
+    /** Photos / PDFs of outside records the booker uploaded (signed links, about an hour). */
+    attachments?: ConsultAttachment[];
     note: ConsultNote | null;
     /** The current (unvoided) version, if one has been issued. */
     prescription: Prescription | null;

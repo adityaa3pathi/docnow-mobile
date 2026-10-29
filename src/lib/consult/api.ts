@@ -4,7 +4,7 @@ import { isAxiosError } from 'axios';
 import { api, errorMessage } from '@/lib/api';
 import type {
     AvailabilityWindow, BookingView, CancelPreview, CancelResult, CartAddResult, ConsultNote, ConsultationStatus,
-    CreateBookingInput, CreateBookingResponse, DoctorConsultationPage, GuestInfo, DoctorConsultationRecord, DoctorMe, DoctorProfileInput,
+    ConsultAttachment, CreateBookingInput, CreateBookingResponse, DoctorConsultationPage, GuestInfo, DoctorConsultationRecord, DoctorMe, DoctorProfileInput,
     DoctorPublicProfile, DoctorSummary, JoinResponse, LeaveEntry, NoteInput, Prescription, PrescriptionInput, ReassignOption,
     Slot, Specialty, VerifyResponse,
 } from './types';
@@ -75,6 +75,16 @@ export const consult = {
     // Zero-login join (docnow.in/call/<token>): works signed in or not.
     guestInfo: (token: string) => get<GuestInfo>(`/api/consult/guest/${encodeURIComponent(token)}`),
     guestJoin: (token: string) => post<JoinResponse>(`/api/consult/guest/${encodeURIComponent(token)}/join`),
+    /** Uploads one photo / PDF of an outside record; book with its id in `attachmentIds`. */
+    uploadAttachment: (file: { uri: string; name: string; mimeType: string }) => {
+        const form = new FormData();
+        // React Native's FormData takes a file as { uri, name, type }.
+        form.append('file', { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
+        return api
+            .post<ConsultAttachment>('/api/consult/attachments', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60_000 })
+            .then((r) => r.data);
+    },
+    removeAttachment: (id: string) => api.delete(`/api/consult/attachments/${id}`).then((r) => r.data),
     addTestsToCart: (id: string) => post<CartAddResult>(`/api/consult/bookings/${id}/recommended-tests/cart`),
     // Doctor running late: each answers 409 until the server sees the doctor 5+ minutes late.
     rescheduleSlots: (id: string) => get<Slot[]>(`/api/consult/bookings/${id}/reschedule-slots`),

@@ -11,7 +11,7 @@ import { Colors, Radius } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
 import { consult, errorStatus, errorText, friendlyError, people as peopleApi, type Person } from '@/lib/consult/api';
 import { mapCreateError } from '@/lib/consult/bookingFlow';
-import { intakeError, intakeFromPerson, intakePatch, isFamilyPerson, type IntakeDraft } from '@/lib/consult/family';
+import { bookingExtras, intakeError, intakeFromPerson, intakePatch, isFamilyPerson, type IntakeDraft } from '@/lib/consult/family';
 import { formatRupees } from '@/lib/consult/format';
 import { sortPeople } from '@/lib/consult/people';
 import { forgetKey, keyFor, loadActiveBooking, saveActiveBooking } from '@/lib/consult/store';
@@ -108,9 +108,7 @@ export default function BookScreen() {
         slotId: slot.id,
         patientId: personId,
         idempotencyKey: key,
-        ...(forFamily && intake
-          ? { isCaregiverJoined: intake.isCaregiverJoined, ...(intake.attachedReportIds.length ? { attachedReportIds: intake.attachedReportIds } : {}) }
-          : {}),
+        ...(forFamily && intake ? bookingExtras(intake) : {}),
       });
       await saveActiveBooking({ id: res.consultationId, slotId: slot.id, patientId: personId, userId });
       // Replace, so back never returns to this screen.
@@ -151,7 +149,11 @@ export default function BookScreen() {
       </View>
 
       {forFamily && person && intake ? (
-        <FamilyIntakeSheet person={person} value={intake} onChange={(next) => setIntakes((cur) => ({ ...cur, [person.id]: next }))} />
+        <FamilyIntakeSheet
+          person={person}
+          value={intake}
+          onChange={(update) => setIntakes((cur) => ({ ...cur, [person.id]: update(cur[person.id] ?? intakeFromPerson(person)) }))}
+        />
       ) : null}
 
       {problem ? (

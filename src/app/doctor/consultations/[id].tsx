@@ -8,6 +8,7 @@ import { Badge } from '@/components/consult/badge';
 import { CallRoomView } from '@/components/consult/call-room-view';
 import { PrescriptionView } from '@/components/consult/prescription-view';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
+import { AttachmentGallery } from '@/components/doctor/attachment-gallery';
 import { PrescriptionPad, type IssuedResult } from '@/components/doctor/prescription-pad';
 import { ActionButton, Notice } from '@/components/doctor/ui';
 import { NotificationPrompt } from '@/components/notifications/notification-prompt';
@@ -56,7 +57,8 @@ function PreCallSummary({ record }: { record: DoctorConsultationRecord }) {
   const allergies = p.allergies ?? [];
   const medicines = p.currentMedications ?? [];
   const reports = record.attachedReports ?? [];
-  const hasIntake = conditions.length + allergies.length + medicines.length > 0 || !!p.bloodGroup;
+  const documents = record.attachments ?? [];
+  const hasIntake = conditions.length + allergies.length + medicines.length + documents.length > 0 || !!p.bloodGroup;
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle} accessibilityRole="header">Pre-call summary</Text>
@@ -88,6 +90,7 @@ function PreCallSummary({ record }: { record: DoctorConsultationRecord }) {
         </View>
       ) : null}
       {p.bloodGroup ? <Row label="Blood group" value={p.bloodGroup} /> : null}
+      {documents.length ? <AttachmentGallery attachments={documents} /> : null}
       {reports.length ? (
         <View style={styles.row}>
           <Text style={styles.rowLabel}>Shared reports</Text>

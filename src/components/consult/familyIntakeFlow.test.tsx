@@ -1,23 +1,31 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as ImagePicker from 'expo-image-picker';
 import { act, useState, type ReactNode } from 'react';
-import { Text } from 'react-native';
+import { Share, Text } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { consult, type Person } from '@/lib/consult/api';
-import { intakeFromPerson, type IntakeDraft } from '@/lib/consult/family';
+import { bookingExtras, intakeFromPerson, type IntakeDraft } from '@/lib/consult/family';
 import type { BookingView, Prescription } from '@/lib/consult/types';
 import { bookingsApi, cartApi } from '@/lib/tests/api';
 import { CartProvider } from '@/lib/tests/cart-context';
 import { createCartBackend, USER_ID } from '@/test-utils/fixtures';
 import { cleanup, render, waitFor } from '@/test-utils/render';
 import { BookingCard } from './booking-card';
-import { FamilyAcceptCard } from './family-access';
+import { FamilyAcceptCard, ShareCallLinkButton } from './family-access';
 import { FamilyIntakeSheet } from './family-intake-sheet';
 import { PatientPrescription } from './patient-prescription';
 
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: USER_ID, name: 'Sunita', mobile: '9876543210' }, loading: false }) }));
 vi.mock('expo-router', () => ({ router: { push: vi.fn(), replace: vi.fn() } }));
 vi.mock('expo-web-browser', () => ({ openBrowserAsync: vi.fn() }));
+vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('expo-image-picker', () => ({
+  requestCameraPermissionsAsync: vi.fn(),
+  requestMediaLibraryPermissionsAsync: vi.fn(),
+  launchCameraAsync: vi.fn(),
+  launchImageLibraryAsync: vi.fn(),
+}));
 
 const MOTHER: Person = {
   id: 'p-mother',
@@ -173,3 +181,99 @@ describe('booked for you', () => {
     expect(document.body.textContent).toContain('Download PDF');
   });
 });
+
+// ── Attach Past Records: camera / gallery uploads ──────
+
+const photo = (n: number, over: Partial<ImagePicker.ImagePickerAsset> = {}) =>
+  ({ uri: `file:///photo-${n}.jpg`, fileName: `old-prescription-${n}.jpg`, mimeType: 'image/jpeg', fileSize: 200_000, width: 1000, height: 1400, ...over }) as ImagePicker.ImagePickerAsset;
+const uploaded = (id: string, name: string) => ({ id, name, mimeType: 'image/jpeg', sizeBytes: 200_000, uploadedAt: '2026-11-01T10:00:00.000Z', url: `https://s3.test/${id}` });
+const chip = (n: number) => $(`intake-doc-file:///photo-${n}.jpg`);
+
+describe('attach past records', () => {
+  beforeEach(() => {
+    vi.spyOn(bookingsApi, 'list').mockResolvedValue([]);
+    vi.mocked(ImagePicker.requestCameraPermissionsAsync).mockResolvedValue({ granted: true, canAskAgain: true } as never);
+    vi.mocked(ImagePicker.requestMediaLibraryPermissionsAsync).mockResolvedValue({ granted: true, canAskAgain: true } as never);
+  });
+
+  it('takes a photo, uploads it, shows a thumbnail chip and puts it in the booking payload', async () => {
+    vi.mocked(ImagePicker.launchCameraAsync).mockResolvedValue({ canceled: false, assets: [photo(1)] });
+    const upload = vi.spyOn(consult, 'uploadAttachment').mockResolvedValue(uploaded('att-1', 'old-prescription-1.jpg'));
+    await render(withQuery(<IntakeHarness person={MOTHER} />));
+
+    await tap($('intake-take-photo'));
+    await waitFor(() => expect(draft().documents[0]?.status).toBe('ready'));
+
+    expect(ImagePicker.launchCameraAsync).toHaveBeenCalledWith(expect.objectContaining({ mediaTypes: ['images'] }));
+    expect(upload).toHaveBeenCalledWith({ uri: 'file:///photo-1.jpg', name: 'old-prescription-1.jpg', mimeType: 'image/jpeg' });
+    expect(chip(1)).not.toBeNull();
+    expect(bookingExtras(draft())).toEqual({ isCaregiverJoined: true, attachmentIds: ['att-1'] });
+  });
+
+  it('removes an attachment chip and deletes the unclaimed upload', async () => {
+    vi.mocked(ImagePicker.launchCameraAsync).mockResolvedValue({ canceled: false, assets: [photo(1)] });
+    vi.spyOn(consult, 'uploadAttachment').mockResolvedValue(uploaded('att-1', 'old-prescription-1.jpg'));
+    const remove = vi.spyOn(consult, 'removeAttachment').mockResolvedValue({ id: 'att-1', removed: true });
+    await render(withQuery(<IntakeHarness person={MOTHER} />));
+    await tap($('intake-take-photo'));
+    await waitFor(() => expect(draft().documents[0]?.status).toBe('ready'));
+
+    await tap($('intake-doc-remove-file:///photo-1.jpg'));
+
+    expect(chip(1)).toBeNull();
+    expect(draft().documents).toEqual([]);
+    expect(remove).toHaveBeenCalledWith('att-1');
+    expect(bookingExtras(draft())).not.toHaveProperty('attachmentIds');
+  });
+
+  it('uploads several from the gallery and leaves a failed one out of the booking', async () => {
+    vi.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({ canceled: false, assets: [photo(1), photo(2)] });
+    vi.spyOn(consult, 'uploadAttachment')
+      .mockResolvedValueOnce(uploaded('att-1', 'old-prescription-1.jpg'))
+      .mockRejectedValueOnce(new Error('Network Error'));
+    await render(withQuery(<IntakeHarness person={MOTHER} />));
+
+    await tap($('intake-pick-gallery'));
+    await waitFor(() => expect(draft().documents.map((d) => d.status)).toEqual(['ready', 'failed']));
+
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith(expect.objectContaining({ allowsMultipleSelection: true, selectionLimit: 5 }));
+    expect(chip(1)).not.toBeNull();
+    expect(chip(2)).not.toBeNull();
+    expect(bookingExtras(draft()).attachmentIds).toEqual(['att-1']);
+  });
+
+  it('refuses a photo over 10 MB without uploading it', async () => {
+    vi.mocked(ImagePicker.launchCameraAsync).mockResolvedValue({ canceled: false, assets: [photo(1, { fileSize: 11 * 1024 * 1024 })] });
+    const upload = vi.spyOn(consult, 'uploadAttachment');
+    await render(withQuery(<IntakeHarness person={MOTHER} />));
+    await tap($('intake-take-photo'));
+    await waitFor(() => expect(draft().documents[0]?.status).toBe('failed'));
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it('points to Settings when the camera is blocked, and opens nothing', async () => {
+    vi.mocked(ImagePicker.requestCameraPermissionsAsync).mockResolvedValue({ granted: false, canAskAgain: false } as never);
+    await render(withQuery(<IntakeHarness person={MOTHER} />));
+    await tap($('intake-take-photo'));
+    await waitFor(() => expect($('family-intake')?.textContent).toContain('Turn it on in Settings'));
+    expect(ImagePicker.launchCameraAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('share call link', () => {
+  it('opens the share sheet with the zero-install call link', async () => {
+    const share = vi.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' } as never);
+    await render(<ShareCallLinkButton booking={{ doctorName: 'Sharma', patientName: 'Sunita Verma', guestJoinUrl: 'https://docnow.in/call/g-1' }} />);
+
+    expect($('share-call-link')?.textContent).toBe('🔗 Share Call Link with Sunita');
+    await tap($('share-call-link'));
+
+    expect(share).toHaveBeenCalledWith({ message: 'Namaste! Dr. Sharma consultation link: https://docnow.in/call/g-1', url: 'https://docnow.in/call/g-1' });
+  });
+
+  it('is not shown without a call link', async () => {
+    await render(<ShareCallLinkButton booking={{ doctorName: 'Sharma', patientName: 'Sunita', guestJoinUrl: null }} />);
+    expect($('share-call-link')).toBeNull();
+  });
+});
+

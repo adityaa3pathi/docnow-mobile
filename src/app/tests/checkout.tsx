@@ -31,12 +31,13 @@ import {
   cartApi,
   SAMPLE_COLLECTION_FEE,
 } from '@/lib/tests/api';
+import { pickInitialAddress } from '@/lib/tests/address';
 import { useCart } from '@/lib/tests/cart-context';
 import type { Address, Cart, PromoValidationResult, Slot } from '@/lib/tests/types';
 
 export default function TestCheckoutScreen() {
   const insets = useSafeAreaInsets();
-  const { refreshCart } = useCart();
+  const { refreshCart, preferredAddressId } = useCart();
   const { startCheckout, submitting } = useTestCheckout();
 
   const [cart, setCart] = useState<Cart | null>(null);
@@ -70,10 +71,11 @@ export default function TestCheckoutScreen() {
 
         if (!cancelled) {
           setCart(cartData);
-          if (addressList?.length > 0) {
-            const active = addressList.find((a) => !a.isDeleted);
-            if (active) setSelectedAddress(active);
-          }
+          // From "Book All Tests": the patient's last collection address, so only the slot is left to pick.
+          const initial = pickInitialAddress(addressList ?? [], preferredAddressId);
+          if (initial) setSelectedAddress(initial);
+          // No saved address yet: ask for one straight away rather than at Pay.
+          else if (cartData?.items?.length) setShowAddressSheet(true);
         }
       } catch {
         if (!cancelled) setLoadFailed(true);
@@ -86,7 +88,7 @@ export default function TestCheckoutScreen() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, preferredAddressId]);
 
   const items = cart?.items || [];
   const subtotal = items.reduce((sum, item) => sum + (item.price || 0), 0);

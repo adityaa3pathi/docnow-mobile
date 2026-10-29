@@ -1,12 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BookingSummary } from '@/components/consult/booking-summary';
 import { CallRoomView } from '@/components/consult/call-room-view';
 import { CancelSheet } from '@/components/consult/cancel-sheet';
-import { BookedForYouBadge, FamilyAcceptCard } from '@/components/consult/family-access';
+import { BookedForYouBadge, FamilyAcceptCard, ShareCallLinkButton } from '@/components/consult/family-access';
 import { JoinPanel } from '@/components/consult/join-panel';
 import { PatientPrescription } from '@/components/consult/patient-prescription';
 import { PrescriptionTimeline } from '@/components/consult/prescription-timeline';
@@ -21,7 +21,6 @@ import { useServerNow } from '@/hooks/use-server-now';
 import { consult } from '@/lib/consult/api';
 import { formatCountdown } from '@/lib/consult/bookingFlow';
 import { formatPaise } from '@/lib/consult/format';
-import { formatIstDateTime } from '@/lib/consult/time';
 import { statusInfo } from '@/lib/consult/status';
 import type { BookingView, JoinResponse } from '@/lib/consult/types';
 import { showWaitingRoom } from '@/lib/consult/waitingRoom';
@@ -170,7 +169,7 @@ export default function BookingScreen() {
           {forYou ? <BookedForYouBadge booking={booking} /> : <PaymentStatus result={decision.result} fresh={fresh} statusLabel={info.label} doctorId={booking.doctorId} />}
           {summary}
           {forYou ? null : <RefundLine booking={booking} />}
-          {forFamily && info.canCancel ? (
+          {forFamily && ['CONFIRMED', 'RESCHEDULED', 'WAITING', 'IN_PROGRESS'].includes(booking.status) ? (
             <View style={styles.familyCard}>
               <Text style={styles.familyTitle}>
                 {booking.familyLinked ? `✓ ${booking.patientName} has this booking on their phone` : `Send ${booking.patientName} the call link`}
@@ -187,16 +186,7 @@ export default function BookingScreen() {
                   {booking.isCaregiverJoined ? ' You can join too, from this screen, to assist.' : ''}
                 </Text>
               )}
-              <Pressable
-                style={styles.familyBtn}
-                onPress={() =>
-                  void Share.share({
-                    message: `Your DocNow consultation with Dr. ${booking.doctorName} is on ${formatIstDateTime(booking.startsAt)}. Join here: ${booking.guestJoinUrl}`,
-                  })
-                }
-                accessibilityRole="button">
-                <Text style={styles.familyBtnText}>Share call link</Text>
-              </Pressable>
+              <ShareCallLinkButton booking={booking} />
             </View>
           ) : null}
           {waiting && booking.type !== 'CHAT' ? (
@@ -316,8 +306,6 @@ const styles = StyleSheet.create({
   familyTitle: { fontSize: 15, fontWeight: '800', color: Colors.primary },
   familyBody: { fontSize: 13, color: Colors.foreground, lineHeight: 18 },
   familyWarn: { fontSize: 13, color: Colors.destructive, fontWeight: '600' },
-  familyBtn: { alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.lg, backgroundColor: Colors.primary },
-  familyBtnText: { color: Colors.primaryForeground, fontWeight: '700' },
   waitingText: {
     flex: 1,
     fontSize: 13,
