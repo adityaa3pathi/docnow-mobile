@@ -10,8 +10,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EmptyState, ErrorRetryState } from '@/components/tests/empty-state';
+import { TestDetailSkeleton } from '@/components/tests/test-card-skeleton';
+import { PhlebotomistGuaranteeCard } from '@/components/tests/trust-badges';
 import { Colors, Radius } from '@/constants/theme';
 import { formatRupees } from '@/lib/consult/format';
+import { hapticNotify, NotificationFeedbackType } from '@/lib/haptics';
 import { catalogApi } from '@/lib/tests/api';
 import { useCart } from '@/lib/tests/cart-context';
 import type { CatalogItem } from '@/lib/tests/types';
@@ -23,6 +27,8 @@ export default function TestDetailScreen() {
 
   const [item, setItem] = useState<CatalogItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
@@ -32,12 +38,14 @@ export default function TestDetailScreen() {
     async function loadData() {
       try {
         setLoading(true);
+        setLoadFailed(false);
         const prod = await catalogApi.detail(code as string);
         if (!cancelled) {
           setItem(prod);
         }
-      } catch {
-        // error
+      } catch (err: any) {
+        // A 404 falls through to "Test not found"; anything else is retryable
+        if (!cancelled && err?.response?.status !== 404) setLoadFailed(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -47,13 +55,14 @@ export default function TestDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, reloadKey]);
 
   const handleAddToCart = async () => {
     if (!item) return;
     try {
       setAdding(true);
-      await addToCart(item.partnerCode);
+      const added = await addToCart(item.partnerCode);
+      hapticNotify(added ? NotificationFeedbackType.Success : NotificationFeedbackType.Error);
     } catch {
       // Handled
     } finally {
@@ -62,20 +71,28 @@ export default function TestDetailScreen() {
   };
 
   if (loading) {
-    return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
+    return <TestDetailSkeleton />;
   }
 
   if (!item) {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
-        <Text style={styles.errorText}>Test not found</Text>
-        <Pressable style={styles.backLink} onPress={() => router.back()}>
-          <Text style={styles.backLinkText}>Go Back</Text>
-        </Pressable>
+        {loadFailed ? (
+          <ErrorRetryState
+            title="Couldn’t load test details"
+            onRetry={() => setReloadKey((k) => k + 1)}
+          />
+        ) : (
+          <EmptyState
+            icon="🧪"
+            title="Test not found"
+            subtitle="This test may have been discontinued or is unavailable right now."
+            actionLabel="Browse All Tests"
+            onAction={() => router.replace('/tests/explore')}
+            secondaryLabel="Go Back"
+            onSecondaryAction={() => router.back()}
+          />
+        )}
       </View>
     );
   }
@@ -166,6 +183,8 @@ export default function TestDetailScreen() {
           </View>
         </View>
 
+        <PhlebotomistGuaranteeCard style={styles.guaranteeCard} />
+
         {/* Fasting Advisory */}
         <View style={styles.advisoryCard}>
           <Text style={styles.advisoryIcon}>ℹ️</Text>
@@ -190,8 +209,6 @@ export default function TestDetailScreen() {
         {/* Partner Trust Assurance */}
         <View style={styles.trustSection}>
           <Text style={styles.trustTitle}>DocNow Diagnostic Promise</Text>
-          <Text style={styles.trustPoint}>✓ Sealed, single-use barcoded sample kits</Text>
-          <Text style={styles.trustPoint}>✓ Cold-chain temperature monitored sample transit</Text>
           <Text style={styles.trustPoint}>✓ Digital reports accessible anytime in your health records</Text>
         </View>
       </ScrollView>
@@ -551,22 +568,9 @@ const styles = StyleSheet.create({
   },
   center: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: Colors.background,
-    padding: 20,
   },
-  errorText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.foreground,
-  },
-  backLink: {
-    marginTop: 12,
-  },
-  backLinkText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
+  guaranteeCard: {
+    marginTop: 16,
   },
 });

@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -9,9 +8,14 @@ import {
   View,
 } from 'react-native';
 
+import { SlotPillsSkeleton } from '@/components/tests/test-card-skeleton';
 import { Colors, Radius } from '@/constants/theme';
+import { hapticImpact, hapticNotify, ImpactFeedbackStyle, NotificationFeedbackType } from '@/lib/haptics';
 import { addressesApi, locationApi, slotsApi } from '@/lib/tests/api';
 import type { Address, Slot } from '@/lib/tests/types';
+
+// Countdown switches to the warning treatment once this many seconds remain
+const EXPIRING_SOON_SECONDS = 180;
 
 interface Props {
   address: Address;
@@ -130,7 +134,9 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
       setFrozenSlotId(s.stm_id);
       setSecondsRemaining(15 * 60); // 15 minutes
       onSlotSelect(s, selectedDate);
+      hapticImpact(ImpactFeedbackStyle.Medium);
     } catch (err: any) {
+      hapticNotify(NotificationFeedbackType.Error);
       Alert.alert(
         'Slot Unavailable',
         err?.response?.data?.message || 'This slot is no longer available. Please select another time.',
@@ -165,17 +171,25 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
   const formatTimer = (sec: number) => {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
+
+  const expiringSoon = secondsRemaining !== null && secondsRemaining <= EXPIRING_SOON_SECONDS;
 
   return (
     <View style={styles.container}>
       {/* 15-Minute Lock Banner */}
       {secondsRemaining !== null && (
-        <View style={styles.timerBanner}>
-          <Text style={styles.timerText}>
-            ⏱ Slot reserved for <Text style={styles.timerBold}>{formatTimer(secondsRemaining)}</Text>
-          </Text>
+        <View style={[styles.timerBanner, expiringSoon && styles.timerBannerWarning]}>
+          {expiringSoon ? (
+            <Text style={[styles.timerText, styles.timerTextWarning]}>
+              ⚠️ Expiring Soon: <Text style={styles.timerBold}>{formatTimer(secondsRemaining)}</Text>
+            </Text>
+          ) : (
+            <Text style={styles.timerText}>
+              ⏱ Slot reserved for <Text style={styles.timerBold}>{formatTimer(secondsRemaining)}</Text>
+            </Text>
+          )}
         </View>
       )}
 
@@ -204,9 +218,8 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
       <Text style={styles.sectionTitle}>Select 1-Hour Time Window</Text>
 
       {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator color={Colors.primary} size="large" />
-          <Text style={styles.loadingText}>Fetching available collection slots...</Text>
+        <View style={styles.slotsContainer}>
+          <SlotPillsSkeleton count={6} />
         </View>
       ) : slots.length === 0 ? (
         <View style={styles.emptyBox}>
@@ -296,8 +309,8 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   timerBanner: {
-    backgroundColor: Colors.amberTint,
-    borderColor: Colors.warning,
+    backgroundColor: Colors.primaryTint,
+    borderColor: Colors.primarySubtle,
     borderWidth: 1,
     borderRadius: Radius.md,
     paddingVertical: 10,
@@ -305,8 +318,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     alignItems: 'center',
   },
+  timerBannerWarning: {
+    backgroundColor: Colors.warningTint,
+    borderColor: Colors.warning,
+  },
   timerText: {
     fontSize: 13,
+    color: Colors.primary,
+  },
+  timerTextWarning: {
     color: Colors.warning,
   },
   timerBold: {
@@ -404,15 +424,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: Colors.warning,
-  },
-  loadingBox: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 8,
-    fontSize: 13,
-    color: Colors.mutedForeground,
   },
   emptyBox: {
     padding: 24,

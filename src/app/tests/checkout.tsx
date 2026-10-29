@@ -12,11 +12,19 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AddressSheet } from '@/components/tests/address-sheet';
+import { ErrorRetryState } from '@/components/tests/empty-state';
 import { PromoSection } from '@/components/tests/promo-section';
 import { SlotPicker } from '@/components/tests/slot-picker';
+import { PhlebotomistGuaranteeCard } from '@/components/tests/trust-badges';
 import { Colors, Radius } from '@/constants/theme';
 import { useTestCheckout } from '@/hooks/use-test-checkout';
 import { formatRupees } from '@/lib/consult/format';
+import {
+  hapticImpact,
+  hapticNotify,
+  ImpactFeedbackStyle,
+  NotificationFeedbackType,
+} from '@/lib/haptics';
 import {
   addressesApi,
   calculateCollectionFee,
@@ -33,6 +41,8 @@ export default function TestCheckoutScreen() {
 
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Address state
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
@@ -52,6 +62,7 @@ export default function TestCheckoutScreen() {
     async function loadInitial() {
       try {
         setLoading(true);
+        setLoadFailed(false);
         const [cartData, addressList] = await Promise.all([
           cartApi.get(),
           addressesApi.list().catch(() => []),
@@ -65,7 +76,7 @@ export default function TestCheckoutScreen() {
           }
         }
       } catch {
-        // error
+        if (!cancelled) setLoadFailed(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -75,7 +86,7 @@ export default function TestCheckoutScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const items = cart?.items || [];
   const subtotal = items.reduce((sum, item) => sum + (item.price || 0), 0);
@@ -101,6 +112,7 @@ export default function TestCheckoutScreen() {
       return;
     }
 
+    hapticImpact(ImpactFeedbackStyle.Medium);
     const res = await startCheckout({
       slot: selectedSlot,
       slotDate: selectedSlotDate,
@@ -110,6 +122,7 @@ export default function TestCheckoutScreen() {
     });
 
     if (res.success && res.bookingId) {
+      hapticNotify(NotificationFeedbackType.Success);
       await refreshCart();
       router.replace({
         pathname: '/tests/confirmation',
@@ -138,134 +151,145 @@ export default function TestCheckoutScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Step 1: Order Summary */}
-        <View style={styles.sectionCard}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardStep}>STEP 1</Text>
-            <Text style={styles.cardTitle}>Tests in Booking ({items.length})</Text>
-          </View>
+      {loadFailed ? (
+        <ErrorRetryState
+          title="Couldn’t load your booking"
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={styles.scroll}>
+            <PhlebotomistGuaranteeCard style={styles.guaranteeCard} />
 
-          {items.map((i) => (
-            <View key={i.id} style={styles.itemRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.testName}>{i.testName}</Text>
-                <Text style={styles.patientInfo}>
-                  For: {i.patient?.name ? `${i.patient.name} (${i.patient.relation})` : 'Self'}
+            {/* Step 1: Order Summary */}
+            <View style={styles.sectionCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardStep}>STEP 1</Text>
+                <Text style={styles.cardTitle}>Tests in Booking ({items.length})</Text>
+              </View>
+
+              {items.map((i) => (
+                <View key={i.id} style={styles.itemRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.testName}>{i.testName}</Text>
+                    <Text style={styles.patientInfo}>
+                      For: {i.patient?.name ? `${i.patient.name} (${i.patient.relation})` : 'Self'}
+                    </Text>
+                  </View>
+                  <Text style={styles.testPrice}>{formatRupees(i.price)}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Step 2: Pickup Address */}
+            <View style={styles.sectionCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardStep}>STEP 2</Text>
+                <Text style={styles.cardTitle}>Sample Collection Address</Text>
+              </View>
+
+              {selectedAddress ? (
+                <View style={styles.selectedAddressBox}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.addressLine}>{selectedAddress.line1}</Text>
+                    <Text style={styles.addressSub}>
+                      {selectedAddress.city} — {selectedAddress.pincode}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setShowAddressSheet(true)}
+                    style={styles.changeAddressBtn}>
+                    <Text style={styles.changeAddressText}>Change</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  style={styles.addAddressTrigger}
+                  onPress={() => setShowAddressSheet(true)}>
+                  <Text style={styles.addAddressText}>+ Select or Add Home Address</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {/* Step 3: Date & Slot Picker */}
+            {selectedAddress ? (
+              <View style={styles.sectionCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardStep}>STEP 3</Text>
+                  <Text style={styles.cardTitle}>Phlebotomist Visit Window</Text>
+                </View>
+
+                <SlotPicker
+                  key={`${selectedAddress.id}-${selectedAddress.pincode}`}
+                  address={selectedAddress}
+                  selectedSlot={selectedSlot}
+                  onSlotSelect={(slot, date) => {
+                    setSelectedSlot(slot);
+                    setSelectedSlotDate(date);
+                  }}
+                />
+              </View>
+            ) : null}
+
+            {/* Step 4: Promo Coupons */}
+            <View style={styles.sectionCard}>
+              <PromoSection
+                cartAmount={subtotal}
+                appliedPromo={appliedPromo}
+                onApply={setAppliedPromo}
+              />
+            </View>
+
+            {/* Step 5: Bill Details */}
+            <View style={styles.sectionCard}>
+              <Text style={styles.cardTitle}>Final Payment Summary</Text>
+
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Item Subtotal</Text>
+                <Text style={styles.billVal}>{formatRupees(subtotal)}</Text>
+              </View>
+
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Home Collection Charge</Text>
+                <Text style={[styles.billVal, collectionFee === 0 && { color: Colors.success }]}>
+                  {collectionFee === 0 ? 'FREE' : formatRupees(SAMPLE_COLLECTION_FEE)}
                 </Text>
               </View>
-              <Text style={styles.testPrice}>{formatRupees(i.price)}</Text>
-            </View>
-          ))}
-        </View>
 
-        {/* Step 2: Pickup Address */}
-        <View style={styles.sectionCard}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardStep}>STEP 2</Text>
-            <Text style={styles.cardTitle}>Sample Collection Address</Text>
-          </View>
+              {discount > 0 && (
+                <View style={styles.billRow}>
+                  <Text style={[styles.billLabel, { color: Colors.success }]}>Coupon Discount ({appliedPromo?.code})</Text>
+                  <Text style={[styles.billVal, { color: Colors.success }]}>- {formatRupees(discount)}</Text>
+                </View>
+              )}
 
-          {selectedAddress ? (
-            <View style={styles.selectedAddressBox}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.addressLine}>{selectedAddress.line1}</Text>
-                <Text style={styles.addressSub}>
-                  {selectedAddress.city} — {selectedAddress.pincode}
-                </Text>
+              <View style={[styles.billRow, styles.grandTotalRow]}>
+                <Text style={styles.grandTotalLabel}>Total Amount Payable</Text>
+                <Text style={styles.grandTotalVal}>{formatRupees(total)}</Text>
               </View>
-              <Pressable
-                onPress={() => setShowAddressSheet(true)}
-                style={styles.changeAddressBtn}>
-                <Text style={styles.changeAddressText}>Change</Text>
-              </Pressable>
             </View>
-          ) : (
+          </ScrollView>
+
+          {/* Sticky Bottom Bar */}
+          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <View>
+              <Text style={styles.bottomLabel}>Amount Payable</Text>
+              <Text style={styles.bottomAmount}>{formatRupees(total)}</Text>
+            </View>
+
             <Pressable
-              style={styles.addAddressTrigger}
-              onPress={() => setShowAddressSheet(true)}>
-              <Text style={styles.addAddressText}>+ Select or Add Home Address</Text>
+              style={[styles.payBtn, submitting && { opacity: 0.7 }]}
+              disabled={submitting}
+              onPress={handlePay}>
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.payBtnText}>Confirm & Pay ›</Text>
+              )}
             </Pressable>
-          )}
-        </View>
-
-        {/* Step 3: Date & Slot Picker */}
-        {selectedAddress ? (
-          <View style={styles.sectionCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardStep}>STEP 3</Text>
-              <Text style={styles.cardTitle}>Phlebotomist Visit Window</Text>
-            </View>
-
-            <SlotPicker
-              key={`${selectedAddress.id}-${selectedAddress.pincode}`}
-              address={selectedAddress}
-              selectedSlot={selectedSlot}
-              onSlotSelect={(slot, date) => {
-                setSelectedSlot(slot);
-                setSelectedSlotDate(date);
-              }}
-            />
           </View>
-        ) : null}
-
-        {/* Step 4: Promo Coupons */}
-        <View style={styles.sectionCard}>
-          <PromoSection
-            cartAmount={subtotal}
-            appliedPromo={appliedPromo}
-            onApply={setAppliedPromo}
-          />
-        </View>
-
-        {/* Step 5: Bill Details */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.cardTitle}>Final Payment Summary</Text>
-
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Item Subtotal</Text>
-            <Text style={styles.billVal}>{formatRupees(subtotal)}</Text>
-          </View>
-
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Home Collection Charge</Text>
-            <Text style={[styles.billVal, collectionFee === 0 && { color: Colors.success }]}>
-              {collectionFee === 0 ? 'FREE' : formatRupees(SAMPLE_COLLECTION_FEE)}
-            </Text>
-          </View>
-
-          {discount > 0 && (
-            <View style={styles.billRow}>
-              <Text style={[styles.billLabel, { color: Colors.success }]}>Coupon Discount ({appliedPromo?.code})</Text>
-              <Text style={[styles.billVal, { color: Colors.success }]}>- {formatRupees(discount)}</Text>
-            </View>
-          )}
-
-          <View style={[styles.billRow, styles.grandTotalRow]}>
-            <Text style={styles.grandTotalLabel}>Total Amount Payable</Text>
-            <Text style={styles.grandTotalVal}>{formatRupees(total)}</Text>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Sticky Bottom Bar */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <View>
-          <Text style={styles.bottomLabel}>Amount Payable</Text>
-          <Text style={styles.bottomAmount}>{formatRupees(total)}</Text>
-        </View>
-
-        <Pressable
-          style={[styles.payBtn, submitting && { opacity: 0.7 }]}
-          disabled={submitting}
-          onPress={handlePay}>
-          {submitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.payBtnText}>Confirm & Pay ›</Text>
-          )}
-        </Pressable>
-      </View>
+        </>
+      )}
 
       {/* Address Selection Modal */}
       <AddressSheet
@@ -312,6 +336,9 @@ const styles = StyleSheet.create({
   scroll: {
     padding: 16,
     paddingBottom: 110,
+  },
+  guaranteeCard: {
+    marginBottom: 14,
   },
   sectionCard: {
     backgroundColor: Colors.card,

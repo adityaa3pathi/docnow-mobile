@@ -11,9 +11,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/components/tests/empty-state';
 import { PatientSheet } from '@/components/tests/patient-sheet';
+import { CartItemSkeleton } from '@/components/tests/test-card-skeleton';
+import { AccreditationBanner } from '@/components/tests/trust-badges';
 import { Colors, Radius } from '@/constants/theme';
 import { formatRupees } from '@/lib/consult/format';
+import { hapticImpact, ImpactFeedbackStyle } from '@/lib/haptics';
 import {
   calculateCollectionFee,
   SAMPLE_COLLECTION_FEE,
@@ -46,6 +50,7 @@ export default function TestsCartScreen() {
   );
 
   const handleRemove = async (itemId: string) => {
+    hapticImpact(ImpactFeedbackStyle.Light);
     try {
       setRemovingId(itemId);
       const success = await removeFromCart(itemId);
@@ -152,29 +157,20 @@ export default function TestsCartScreen() {
       </View>
 
       {loading && !cart ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator color={Colors.primary} size="large" />
-          <Text style={styles.loadingText}>Loading cart...</Text>
-        </View>
+        <CartItemSkeleton />
       ) : items.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyEmoji}>🧪</Text>
-          <Text style={styles.emptyTitle}>Your diagnostic cart is empty</Text>
-          <Text style={styles.emptySub}>
-            Book doctor-recommended blood tests or choose preventive full-body health packages with certified home sample collection.
-          </Text>
-
-          <Pressable
-            style={styles.exploreBtn}
-            onPress={() => router.push('/tests/explore')}>
-            <Text style={styles.exploreBtnText}>Browse Tests & Packages</Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.doctorBtn}
-            onPress={() => router.push('/(tabs)')}>
-            <Text style={styles.doctorBtnText}>Consult a Doctor First ›</Text>
-          </Pressable>
+          <EmptyState
+            icon="🛒"
+            title="Your diagnostic cart is empty"
+            subtitle="Save up to 70% on preventive health checkups with free certified home collection."
+            actionLabel="Browse Tests & Health Packages"
+            onAction={() => router.push('/tests/explore')}
+            secondaryLabel="Consult a Doctor First ›"
+            onSecondaryAction={() => router.push('/(tabs)')}
+            style={styles.emptyStateFill}
+          />
+          <AccreditationBanner style={styles.emptyBanner} />
         </View>
       ) : (
         <>
@@ -233,16 +229,19 @@ export default function TestsCartScreen() {
 
           {/* Sticky Bottom Bar */}
           <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-            <View>
-              <Text style={styles.bottomTotalLabel}>Total Amount</Text>
-              <Text style={styles.bottomTotal}>{formatRupees(total)}</Text>
-            </View>
+            <AccreditationBanner variant="compact" style={styles.bottomTrust} />
+            <View style={styles.bottomRow}>
+              <View>
+                <Text style={styles.bottomTotalLabel}>Total Amount</Text>
+                <Text style={styles.bottomTotal}>{formatRupees(total)}</Text>
+              </View>
 
-            <Pressable
-              style={styles.checkoutBtn}
-              onPress={() => router.push('/tests/checkout')}>
-              <Text style={styles.checkoutBtnText}>Select Slot & Address ›</Text>
-            </Pressable>
+              <Pressable
+                style={styles.checkoutBtn}
+                onPress={() => router.push('/tests/checkout')}>
+                <Text style={styles.checkoutBtnText}>Select Slot & Address ›</Text>
+              </Pressable>
+            </View>
           </View>
         </>
       )}
@@ -286,66 +285,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.destructive,
   },
-  centerBox: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 14,
-    color: Colors.mutedForeground,
-  },
   emptyContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
   },
-  emptyEmoji: {
-    fontSize: 56,
+  emptyStateFill: {
+    paddingHorizontal: 30,
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.foreground,
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  emptySub: {
-    fontSize: 14,
-    color: Colors.mutedForeground,
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  exploreBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    marginTop: 24,
-    width: '100%',
-    alignItems: 'center',
-  },
-  exploreBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  doctorBtn: {
-    marginTop: 14,
-    paddingVertical: 10,
-  },
-  doctorBtnText: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
+  emptyBanner: {
+    borderBottomWidth: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.primarySubtle,
   },
   listContent: {
     padding: 16,
-    paddingBottom: 110,
+    paddingBottom: 140,
   },
   listHeader: {
     marginBottom: 12,
@@ -510,14 +463,22 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingTop: 10,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 8,
+  },
+  bottomTrust: {
+    paddingBottom: 8,
+    marginBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   bottomTotalLabel: {
     fontSize: 11,

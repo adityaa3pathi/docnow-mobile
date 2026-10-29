@@ -11,8 +11,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EmptyState, ErrorRetryState } from '@/components/tests/empty-state';
+import { TestCardSkeleton } from '@/components/tests/test-card-skeleton';
+import { AccreditationBanner } from '@/components/tests/trust-badges';
 import { Colors, Radius } from '@/constants/theme';
 import { formatRupees } from '@/lib/consult/format';
+import { hapticImpact, ImpactFeedbackStyle } from '@/lib/haptics';
 import { catalogApi } from '@/lib/tests/api';
 import { useCart } from '@/lib/tests/cart-context';
 import type { CatalogCategory, CatalogItem } from '@/lib/tests/types';
@@ -34,6 +38,8 @@ export default function ExploreTestsScreen() {
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [products, setProducts] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [addingCode, setAddingCode] = useState<string | null>(null);
 
   // Load categories
@@ -47,6 +53,7 @@ export default function ExploreTestsScreen() {
     const timer = setTimeout(async () => {
       try {
         setLoading(true);
+        setLoadFailed(false);
         const res = await catalogApi.products({
           search: search.trim() || undefined,
           type: selectedType || undefined,
@@ -57,7 +64,10 @@ export default function ExploreTestsScreen() {
           setProducts(res.products || []);
         }
       } catch {
-        if (!cancelled) setProducts([]);
+        if (!cancelled) {
+          setProducts([]);
+          setLoadFailed(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -67,9 +77,10 @@ export default function ExploreTestsScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [search, selectedType, selectedCategory]);
+  }, [search, selectedType, selectedCategory, reloadKey]);
 
   const handleAddToCart = async (item: CatalogItem) => {
+    hapticImpact(ImpactFeedbackStyle.Medium);
     try {
       setAddingCode(item.partnerCode);
       await addToCart(item.partnerCode);
@@ -234,18 +245,32 @@ export default function ExploreTestsScreen() {
         </View>
       )}
 
+      <AccreditationBanner />
+
       {/* Product List */}
       {loading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingMsg}>Finding certified lab tests...</Text>
+        <View style={styles.listContent}>
+          {[0, 1, 2, 3].map((i) => (
+            <TestCardSkeleton key={i} />
+          ))}
         </View>
+      ) : loadFailed ? (
+        <ErrorRetryState
+          title="Couldn’t load lab tests"
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
       ) : products.length === 0 ? (
-        <View style={styles.centerBox}>
-          <Text style={styles.noResultsEmoji}>🧪</Text>
-          <Text style={styles.noResultsTitle}>No tests found</Text>
-          <Text style={styles.noResultsSub}>Try adjusting your search or category filter</Text>
-        </View>
+        <EmptyState
+          icon="🔍"
+          title="No tests matching your query"
+          subtitle="Try checking for generic test names like CBC, Thyroid, or Vitamin D"
+          actionLabel="Clear Filters"
+          onAction={() => {
+            setSearch('');
+            setSelectedType('');
+            setSelectedCategory('');
+          }}
+        />
       ) : (
         <FlatList
           data={products}
@@ -534,31 +559,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: 11,
     fontWeight: '700',
-  },
-  centerBox: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
-  },
-  loadingMsg: {
-    marginTop: 10,
-    fontSize: 14,
-    color: Colors.mutedForeground,
-  },
-  noResultsEmoji: {
-    fontSize: 48,
-  },
-  noResultsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.foreground,
-    marginTop: 12,
-  },
-  noResultsSub: {
-    fontSize: 13,
-    color: Colors.mutedForeground,
-    marginTop: 4,
   },
   floatingCart: {
     position: 'absolute',
