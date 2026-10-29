@@ -6,8 +6,9 @@ import { useEffect } from 'react';
 
 import { useResumeBooking } from '@/hooks/use-resume-booking';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { CartProvider } from '@/lib/tests/cart-context';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 const queryClient = new QueryClient();
 
 function ResumeBooking() {
@@ -25,7 +26,9 @@ function Routes() {
   }, [user, queryClient]);
 
   useEffect(() => {
-    if (!loading) SplashScreen.hideAsync();
+    if (!loading) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
   }, [loading]);
 
   if (loading) return null;
@@ -38,6 +41,7 @@ function Routes() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="consult" />
           <Stack.Screen name="doctor" />
+          <Stack.Screen name="tests" />
         </Stack.Protected>
         <Stack.Protected guard={!user}>
           <Stack.Screen name="login" />
@@ -51,8 +55,10 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <StatusBar style="dark" />
-        <Routes />
+        <CartProvider>
+          <StatusBar style="dark" />
+          <Routes />
+        </CartProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

@@ -33,7 +33,7 @@ function copy(result: ResultKind, fresh: boolean, statusLabel: string): { title:
 
 /** One message per outcome, announced to screen readers. Done goes to My consultations. */
 export function PaymentStatus({ result, fresh, statusLabel, doctorId }: Props) {
-  const heading = useRef<Text>(null);
+  const heading = useRef<React.ElementRef<typeof Text>>(null);
   const { title, body, tone } = copy(result, fresh, statusLabel);
   const colors = toneColors[tone];
 

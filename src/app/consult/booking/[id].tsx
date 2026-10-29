@@ -4,15 +4,20 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BookingSummary } from '@/components/consult/booking-summary';
+import { CallRoomView } from '@/components/consult/call-room-view';
 import { CancelSheet } from '@/components/consult/cancel-sheet';
+import { JoinPanel } from '@/components/consult/join-panel';
+import { PatientPrescription } from '@/components/consult/patient-prescription';
+import { PrescriptionTimeline } from '@/components/consult/prescription-timeline';
 import { CheckingNotice, ConfirmingNotice, PaymentStatus } from '@/components/consult/payment-status';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
 import { Colors, Radius } from '@/constants/theme';
 import { useBookingFlow } from '@/hooks/use-booking-flow';
+import { consult } from '@/lib/consult/api';
 import { formatCountdown } from '@/lib/consult/bookingFlow';
 import { formatPaise } from '@/lib/consult/format';
 import { statusInfo } from '@/lib/consult/status';
-import type { BookingView } from '@/lib/consult/types';
+import type { BookingView, JoinResponse } from '@/lib/consult/types';
 
 const REFUND_TEXT = {
   PENDING: 'Refund on its way',
@@ -34,6 +39,7 @@ export default function BookingScreen() {
   const flow = useBookingFlow(id, true);
   const autoOpened = useRef(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [activeCall, setActiveCall] = useState<JoinResponse | null>(null);
   const queryClient = useQueryClient();
   const { booking, decision, pay } = flow;
 
@@ -119,6 +125,31 @@ export default function BookingScreen() {
           <PaymentStatus result={decision.result} fresh={fresh} statusLabel={info.label} doctorId={booking.doctorId} />
           {summary}
           <RefundLine booking={booking} />
+          <JoinPanel
+            status={booking.status}
+            type={booking.type}
+            startsAt={booking.startsAt}
+            endsAt={booking.endsAt}
+            join={() => consult.join(booking.consultationId)}
+            onJoined={(res) => setActiveCall(res)}
+          />
+          {booking.status === 'COMPLETED' ? (
+            <>
+              <PrescriptionTimeline booking={booking} onRefresh={() => void flow.refetch()} />
+              {booking.hasPrescription || booking.rxStatus === 'ISSUED' ? (
+                <PatientPrescription bookingId={booking.consultationId} />
+              ) : null}
+            </>
+          ) : booking.hasPrescription ? (
+            <PatientPrescription bookingId={booking.consultationId} />
+          ) : booking.status === 'IN_PROGRESS' || booking.status === 'WAITING' ? (
+            <View style={styles.waitingCard}>
+              <Text style={styles.waitingText}>Your prescription will appear here once the doctor signs and issues it.</Text>
+              <Pressable style={styles.refreshBtn} onPress={() => void flow.refetch()}>
+                <Text style={styles.refreshBtnText}>Check again</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </>
       )}
       {canCancel && (
@@ -136,6 +167,19 @@ export default function BookingScreen() {
         unpaid={booking.status === 'PENDING_PAYMENT'}
         onClose={() => setCancelOpen(false)}
         onCancelled={() => {
+          void flow.refetch();
+          void queryClient.invalidateQueries({ queryKey: ['consult', 'bookings'] });
+        }}
+      />
+      <CallRoomView
+        visible={activeCall !== null}
+        url={activeCall?.url ?? ''}
+        token={activeCall?.token ?? ''}
+        role={activeCall?.role ?? 'patient'}
+        consultationId={booking.consultationId}
+        otherPartyName={`Dr. ${booking.doctorName}`}
+        onLeave={() => {
+          setActiveCall(null);
           void flow.refetch();
           void queryClient.invalidateQueries({ queryKey: ['consult', 'bookings'] });
         }}
@@ -160,4 +204,32 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.5 },
   outline: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.primary },
   outlineText: { color: Colors.primary, fontWeight: '700' },
+  waitingCard: {
+    padding: 16,
+    borderRadius: Radius.xl,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: Colors.muted,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  waitingText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.mutedForeground,
+  },
+  refreshBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  refreshBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
 });

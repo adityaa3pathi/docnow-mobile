@@ -3,8 +3,9 @@ import { isAxiosError } from 'axios';
 
 import { api, errorMessage } from '@/lib/api';
 import type {
-    AvailabilityWindow, BookingView, DoctorConsultationPage, DoctorMe, DoctorProfileInput, LeaveEntry, CancelPreview, CancelResult, CreateBookingResponse, DoctorPublicProfile, DoctorSummary,
-    Slot, Specialty, VerifyResponse,
+    AvailabilityWindow, BookingView, CancelPreview, CancelResult, CartAddResult, CreateBookingResponse,
+    DoctorConsultationPage, DoctorMe, DoctorProfileInput, DoctorPublicProfile, DoctorSummary,
+    JoinResponse, LeaveEntry, Prescription, Slot, Specialty, VerifyResponse,
 } from './types';
 
 export interface Person {
@@ -46,6 +47,10 @@ export const consult = {
         post<VerifyResponse>(`/api/consult/bookings/${id}/verify`, body),
     cancelPreview: (id: string) => get<CancelPreview>(`/api/consult/bookings/${id}/cancel-preview`),
     cancel: (id: string, reason?: string) => post<CancelResult>(`/api/consult/bookings/${id}/cancel`, { reason }),
+    join: (id: string) => post<JoinResponse>(`/api/consult/bookings/${id}/join`),
+    prescription: (id: string) => get<Prescription>(`/api/consult/bookings/${id}/prescription`),
+    prescriptionPdfUrl: (id: string) => `${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/consult/bookings/${id}/prescription.pdf`,
+    addTestsToCart: (id: string) => post<CartAddResult>(`/api/consult/bookings/${id}/recommended-tests/cart`),
 };
 
 export const people = {

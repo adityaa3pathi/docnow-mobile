@@ -3,6 +3,8 @@ export type ConsultationStatus =
     | 'PENDING_PAYMENT' | 'CONFIRMED' | 'RESCHEDULED' | 'WAITING' | 'IN_PROGRESS' | 'COMPLETED'
     | 'CANCELLED' | 'NO_SHOW_PATIENT' | 'NO_SHOW_DOCTOR' | 'EXPIRED' | 'REFUNDED';
 
+export type ConsultationType = 'VIDEO' | 'AUDIO' | 'CHAT';
+
 export type DoctorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
 export interface Specialty {
@@ -61,6 +63,10 @@ export interface BookingView extends CreateBookingResponse {
     underStaffCheck: boolean;
     refundPaise: number;
     refundStatus: 'PENDING' | 'PROCESSED' | 'FAILED' | null;
+    type?: ConsultationType;
+    hasPrescription?: boolean;
+    prescriptionId?: string | null;
+    rxStatus?: 'ISSUED' | 'DRAFTING' | 'PENDING' | 'NOT_REQUIRED';
 }
 
 export type VerifyOutcome = 'confirmed' | 'reclaimed' | 'already' | 'refund_created' | 'flagged' | 'unknown_order';
@@ -190,3 +196,78 @@ export interface ReviewQueue {
     flaggedPayments: FlaggedPayment[];
     refundsNeedingStaff: RefundNeedingStaff[];
 }
+
+// ── Video room and prescriptions ────────────────────────
+
+export interface JoinResponse {
+    /** LiveKit server URL (wss). */
+    url: string;
+    roomId: string;
+    /** `doctor`, `patient`, or an `-audio` variant that may only publish the microphone. */
+    role: string;
+    /** LiveKit access token for this person and room; it carries their display name. */
+    token: string;
+}
+
+export interface Medicine {
+    name: string;
+    dose: string;
+    frequency: string;
+    duration: string;
+    instructions: string;
+}
+
+export interface RecommendedTest {
+    code: string;
+    name: string;
+}
+
+export interface Prescription {
+    id: string;
+    consultationId: string;
+    /** Starts at 1; a correction voids the current version and issues the next. */
+    version: number;
+    medicines: Medicine[];
+    recommendedTests: RecommendedTest[];
+    advice: string | null;
+    doctorSnapshot: { displayName: string; qualification: string; registrationNumber: string; registrationCouncil: string; specialty: string };
+    patientSnapshot: { name: string; age: number; gender: string };
+    issuedAt: string;
+}
+
+export interface PrescriptionInput {
+    medicines: Medicine[];
+    testCodes: string[];
+    advice?: string;
+}
+
+export interface ConsultNote {
+    complaints: string | null;
+    findings: string | null;
+    diagnosis: string | null;
+    advice: string | null;
+    followUpDays: number | null;
+    updatedAt: string;
+}
+
+export interface NoteInput {
+    complaints?: string;
+    findings?: string;
+    diagnosis?: string;
+    advice?: string;
+    followUpDays?: number | null;
+}
+
+export interface CartAddResult {
+    added: string[];
+    skipped: { code: string; reason: string }[];
+}
+
+export interface PrescriptionVersion {
+    id: string;
+    version: number;
+    issuedAt: string;
+    voidedAt: string;
+    voidReason: string | null;
+}
+

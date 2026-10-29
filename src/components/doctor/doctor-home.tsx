@@ -1,4 +1,4 @@
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
@@ -9,7 +9,7 @@ import { useDoctorConsultations } from '@/hooks/use-doctor-consultations';
 import { useDoctorMe } from '@/hooks/use-doctor-me';
 import { friendlyError } from '@/lib/consult/api';
 
-const LINKS: { label: string; hint: string; href: Href }[] = [
+const LINKS: { label: string; hint: string; href: any }[] = [
   { label: 'Consultations', hint: 'Upcoming and past bookings', href: '/doctor/consultations' },
   { label: 'Weekly hours', hint: 'Set when patients can book you', href: '/doctor/hours' },
   { label: 'Leave', hint: 'Block days or times you are away', href: '/doctor/leave' },
