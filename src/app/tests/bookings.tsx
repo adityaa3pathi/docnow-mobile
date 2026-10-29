@@ -86,7 +86,7 @@ export default function TestBookingsScreen() {
 
   // The download URL needs the sign-in header, which a browser does not send; the viewer uses a signed link.
   const handleDownloadReport = (reportId: string) => {
-    router.push({ pathname: '/records/report/[id]', params: { id: reportId } });
+    router.push({ pathname: '/records/report/[id]' as any, params: { id: reportId } });
   };
 
   // Like reports, the invoice opens through a signed link: a browser cannot send the sign-in header.

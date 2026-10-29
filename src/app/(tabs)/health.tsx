@@ -47,7 +47,7 @@ export default function HealthScreen() {
 
   // The download URL needs the sign-in header, which a browser does not send; the viewer uses a signed link.
   const handleDownloadReport = (reportId: string) => {
-    router.push({ pathname: '/records/report/[id]', params: { id: reportId } });
+    router.push({ pathname: '/records/report/[id]' as any, params: { id: reportId } });
   };
 
   return (
