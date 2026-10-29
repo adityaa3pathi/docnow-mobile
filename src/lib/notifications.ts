@@ -11,12 +11,14 @@ import {
     AndroidNotificationVisibility,
     IosAuthorizationStatus,
 } from 'expo-notifications';
-import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 import { api } from '@/lib/api';
+import { targetFromNotificationData } from '@/lib/deep-links';
+import { needsRegistration, readRegistration, saveRegistration } from '@/lib/push-registration';
 
 export { deepLinkPath, deepLinkUrl, parseDeepLink, targetFromNotificationData, type DeepLinkTarget } from '@/lib/deep-links';
+export { clearPushRegistration, needsRegistration, unregisterPushToken } from '@/lib/push-registration';
 
 export const CHANNEL_IDS = {
     call: 'teleconsult-call',
@@ -130,30 +132,33 @@ export function configureForegroundHandler() {
     Notifications.setNotificationHandler({ handleNotification: async (n) => foregroundBehavior(n) });
 }
 
-// ── Push token registration ─────────────────────────────
+// ── Push payloads from the server dispatcher ────────────
 
-const REGISTRATION_KEY = 'docnow_push_registration';
-
-interface Registration {
-    token: string;
-    userId: string;
+/** `data` of a push sent by the server: `{ url, channelId, kind, consultationId }`. */
+export interface PushData {
+    url?: string;
+    channelId?: string;
+    kind?: string;
+    consultationId?: string;
 }
 
-/** A token is sent again only when it, or the signed-in account, has changed. */
-export function needsRegistration(cached: Registration | null, next: Registration): boolean {
-    return !cached || cached.token !== next.token || cached.userId !== next.userId;
-}
-
-async function readRegistration(): Promise<Registration | null> {
-    try {
-        const raw = await SecureStore.getItemAsync(REGISTRATION_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw) as Partial<Registration>;
-        return typeof parsed.token === 'string' && typeof parsed.userId === 'string' ? { token: parsed.token, userId: parsed.userId } : null;
-    } catch {
-        return null;
+/**
+ * React Query keys a push makes stale, so the screen it is about refreshes at once instead of
+ * waiting for its next poll. The link decides whose screen: doctor links refresh the doctor's view.
+ */
+export function queryKeysForPush(data: unknown): (readonly string[])[] {
+    if (!data || typeof data !== 'object') return [];
+    const { kind, consultationId } = data as PushData;
+    if (typeof consultationId !== 'string' || !consultationId) return [];
+    if (targetFromNotificationData(data)?.kind === 'doctor-consultation') {
+        return [['doctor', 'consultation', consultationId], ['doctor', 'consultations']];
     }
+    const keys: (readonly string[])[] = [['consult', 'bookings']];
+    if (kind === 'PRESCRIPTION_ISSUED') keys.push(['consult', 'prescription', consultationId]);
+    return keys;
 }
+
+// ── Push token registration ─────────────────────────────
 
 function projectId(): string | null {
     const extra = Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined;
@@ -179,7 +184,7 @@ export function registerPushToken(userId: string): Promise<RegistrationResult> {
             const next = { token, userId };
             if (!needsRegistration(await readRegistration(), next)) return 'unchanged';
             await api.post('/api/profile/push-token', { token, platform: Platform.OS });
-            await SecureStore.setItemAsync(REGISTRATION_KEY, JSON.stringify(next));
+            await saveRegistration(next);
             return 'registered';
         } catch {
             return 'failed';
@@ -191,7 +196,3 @@ export function registerPushToken(userId: string): Promise<RegistrationResult> {
     return promise;
 }
 
-/** Forgets the cached registration so the next account on this phone registers afresh. */
-export async function clearPushRegistration(): Promise<void> {
-    await SecureStore.deleteItemAsync(REGISTRATION_KEY).catch(() => {});
-}

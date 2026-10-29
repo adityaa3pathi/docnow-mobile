@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { router, useRootNavigationState, type Href } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -10,6 +11,7 @@ import {
     clearPushRegistration,
     configureForegroundHandler,
     deepLinkPath,
+    queryKeysForPush,
     registerPushToken,
     setupNotificationChannels,
     targetFromNotificationData,
@@ -40,6 +42,7 @@ export function useNotifications(userId: string | null) {
     const handledResponse = useRef<string | null>(null);
     const [pendingTick, setPendingTick] = useState(0);
     const [toast, setToast] = useState<InAppToast | null>(null);
+    const queryClient = useQueryClient();
 
     const queue = useCallback((target: DeepLinkTarget | null) => {
         if (!target) return;
@@ -62,6 +65,10 @@ export function useNotifications(userId: string | null) {
 
     useEffect(() => {
         if (!native) return;
+        // The server only pushes when something changed, so the screens it is about refetch now.
+        const refresh = (data: unknown) => {
+            for (const queryKey of queryKeysForPush(data)) void queryClient.invalidateQueries({ queryKey });
+        };
         const targetOf = (response: Notifications.NotificationResponse) => {
             const id = response.notification.request.identifier;
             if (handledResponse.current === id) return null;
@@ -77,10 +84,15 @@ export function useNotifications(userId: string | null) {
             Notifications.clearLastNotificationResponse();
         }
 
-        const responseSub = Notifications.addNotificationResponseReceivedListener((r) => queue(targetOf(r)));
+        const responseSub = Notifications.addNotificationResponseReceivedListener((r) => {
+            refresh(r.notification.request.content.data);
+            queue(targetOf(r));
+        });
         const receivedSub = Notifications.addNotificationReceivedListener((n) => {
             const channel = channelOf(n);
+            refresh(n.request.content.data);
             if (channel === CHANNEL_IDS.call) hapticNotify(NotificationFeedbackType.Warning);
+            else if (channel === CHANNEL_IDS.clinical) hapticNotify(NotificationFeedbackType.Success);
             setToast({
                 id: n.request.identifier,
                 title: n.request.content.title ?? 'DocNow',
@@ -93,7 +105,7 @@ export function useNotifications(userId: string | null) {
             responseSub.remove();
             receivedSub.remove();
         };
-    }, [queue]);
+    }, [queue, queryClient]);
 
     // Opens the queued screen once the router can navigate and the protected routes exist.
     useEffect(() => {

@@ -14,10 +14,12 @@ import {
     foregroundBehavior,
     needsRegistration,
     parseDeepLink,
+    queryKeysForPush,
     registerPushToken,
     requestPermission,
     setupNotificationChannels,
     targetFromNotificationData,
+    unregisterPushToken,
 } from './notifications';
 
 const platform = vi.hoisted(() => ({ OS: 'android' as 'android' | 'ios' | 'web' }));
@@ -31,7 +33,7 @@ vi.mock('expo-constants', () => ({
     default: { expoConfig: { extra: { eas: { projectId: 'project-123' } } }, easConfig: null },
 }));
 
-vi.mock('@/lib/api', () => ({ api: { post: vi.fn() } }));
+vi.mock('@/lib/api', () => ({ api: { post: vi.fn(), delete: vi.fn() } }));
 
 vi.mock('expo-notifications', () => ({
     AndroidImportance: { DEFAULT: 5, HIGH: 6, MAX: 7 },
@@ -61,6 +63,7 @@ beforeEach(() => {
     store.clear();
     vi.mocked(SecureStore.getItemAsync).mockImplementation(async (k: string) => store.get(k) ?? null);
     vi.mocked(SecureStore.setItemAsync).mockImplementation(async (k: string, v: string) => void store.set(k, v));
+    vi.mocked(SecureStore.deleteItemAsync).mockImplementation(async (k: string) => void store.delete(k));
     vi.mocked(Notifications.getPermissionsAsync).mockResolvedValue(granted);
     vi.mocked(Notifications.getExpoPushTokenAsync).mockResolvedValue({ type: 'expo', data: 'ExponentPushToken[aaa]' });
     vi.mocked(api.post).mockResolvedValue({ data: {} });
@@ -200,5 +203,50 @@ describe('push token registration', () => {
         expect(await registerPushToken('user-1')).toBe('failed');
         expect(store.size).toBe(0);
         expect(await registerPushToken('user-1')).toBe('registered');
+    });
+});
+
+describe('server push payloads', () => {
+    it('refreshes the doctor workspace and list for doctor links', () => {
+        expect(queryKeysForPush({ url: `docnow://doctor/consultations/${UUID}`, kind: 'PARTNER_WAITING', consultationId: UUID })).toEqual([
+            ['doctor', 'consultation', UUID],
+            ['doctor', 'consultations'],
+        ]);
+    });
+
+    it('refreshes the patient bookings, and the prescription once it is issued', () => {
+        expect(queryKeysForPush({ url: `docnow://consult/room/${UUID}`, kind: 'JOIN_NOW', consultationId: UUID })).toEqual([['consult', 'bookings']]);
+        expect(queryKeysForPush({ url: `docnow://records/prescription/${UUID}`, kind: 'PRESCRIPTION_ISSUED', consultationId: UUID })).toEqual([
+            ['consult', 'bookings'],
+            ['consult', 'prescription', UUID],
+        ]);
+    });
+
+    it('ignores payloads that are not from the dispatcher', () => {
+        expect(queryKeysForPush({ url: 'docnow://consult/room/x' })).toEqual([]);
+        expect(queryKeysForPush('hello')).toEqual([]);
+        expect(queryKeysForPush(null)).toEqual([]);
+    });
+});
+
+describe('unregistering on sign-out', () => {
+    it('asks the server to forget this phone, then clears the local record', async () => {
+        await registerPushToken('user-1');
+        vi.mocked(api.delete).mockResolvedValue({ data: {} });
+        expect(await unregisterPushToken()).toBe('removed');
+        expect(api.delete).toHaveBeenCalledWith('/api/profile/push-token', expect.objectContaining({ data: { token: 'ExponentPushToken[aaa]' } }));
+        expect(store.size).toBe(0);
+    });
+
+    it('still clears locally when offline, so sign-out never hangs or fails', async () => {
+        await registerPushToken('user-1');
+        vi.mocked(api.delete).mockRejectedValue(new Error('Network Error'));
+        expect(await unregisterPushToken()).toBe('failed');
+        expect(store.size).toBe(0);
+    });
+
+    it('makes no call when this phone never registered', async () => {
+        expect(await unregisterPushToken()).toBe('none');
+        expect(api.delete).not.toHaveBeenCalled();
     });
 });
