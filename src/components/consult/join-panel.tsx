@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Radius } from '@/constants/theme';
@@ -14,24 +14,15 @@ interface Props {
   endsAt: string;
   join: () => Promise<JoinResponse>;
   onJoined: (res: JoinResponse) => void;
+  /** Joins once by itself when the window is open, e.g. after a "Doctor is waiting" notification. */
+  autoJoin?: boolean;
 }
 
-export function JoinPanel({ status, type = 'VIDEO', startsAt, endsAt, join, onJoined }: Props) {
+export function JoinPanel({ status, type = 'VIDEO', startsAt, endsAt, join, onJoined, autoJoin = false }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (type === 'CHAT') {
-    return (
-      <View style={styles.card}>
-        <Text style={styles.title}>Chat Consultation</Text>
-        <Text style={styles.subtext}>Chat consultations are not available yet.</Text>
-      </View>
-    );
-  }
-
-  const now = serverNow();
-  const win = joinWindow({ status, startsAt, endsAt }, now);
-  if (win.kind === 'not_joinable') return null;
+  const autoJoined = useRef(false);
+  const windowOpen = type !== 'CHAT' && joinWindow({ status, startsAt, endsAt }, serverNow()).kind === 'open';
 
   async function start() {
     setBusy(true);
@@ -45,6 +36,31 @@ export function JoinPanel({ status, type = 'VIDEO', startsAt, endsAt, join, onJo
       setBusy(false);
     }
   }
+
+  const autoStart = useEffectEvent(() => {
+    autoJoined.current = true;
+    void start();
+  });
+
+  useEffect(() => {
+    if (!autoJoin || !windowOpen || autoJoined.current) return;
+    // Deferred so the join's state updates happen outside the effect body.
+    const timer = setTimeout(autoStart, 0);
+    return () => clearTimeout(timer);
+  }, [autoJoin, windowOpen]);
+
+  if (type === 'CHAT') {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Chat Consultation</Text>
+        <Text style={styles.subtext}>Chat consultations are not available yet.</Text>
+      </View>
+    );
+  }
+
+  const now = serverNow();
+  const win = joinWindow({ status, startsAt, endsAt }, now);
+  if (win.kind === 'not_joinable') return null;
 
   const callLabel = type === 'AUDIO' ? 'Audio call' : 'Video call';
 

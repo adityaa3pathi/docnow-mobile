@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { api, clearTokens, hasTokens, saveTokens, setSessionExpiredHandler } from '@/lib/api';
+import { unregisterPushToken } from '@/lib/push-registration';
 
 export type User = {
   id: string;
@@ -25,6 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const signOut = useCallback(async () => {
+    // First, while the session is still valid: stop this phone receiving the account's notifications.
+    await unregisterPushToken();
     try {
       await api.post('/api/auth/logout');
     } catch {

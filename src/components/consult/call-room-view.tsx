@@ -3,6 +3,7 @@ import { Modal, NativeModules, Pressable, StyleSheet, Text, View } from 'react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors, Radius } from '@/constants/theme';
+import type { ConsultRoomEvent } from '@/lib/consult/types';
 
 export interface Props {
   visible: boolean;
@@ -12,6 +13,14 @@ export interface Props {
   consultationId?: string;
   otherPartyName?: string;
   onLeave: () => void;
+  /** Doctor tools shown in a collapsible sheet during the call (e.g. the prescription pad). */
+  renderTools?: (tools: RoomTools) => React.ReactNode;
+  toolsLabel?: string;
+}
+
+export interface RoomTools {
+  /** Sends an event to everyone in the room on the `consult-events` data topic. */
+  publish: (event: ConsultRoomEvent) => Promise<void>;
 }
 
 let LiveRoomComponent: React.ComponentType<Props> | null = null;

@@ -271,3 +271,24 @@ export interface PrescriptionVersion {
     voidReason: string | null;
 }
 
+
+/** GET /api/doctor/me/consultations/:id — the doctor's own view of one consultation. */
+export interface DoctorConsultationRecord {
+    id: string;
+    status: ConsultationStatus;
+    type: ConsultationType;
+    startsAt: string;
+    patientJoinedAt: string | null;
+    doctorJoinedAt: string | null;
+    slot: { endsAt: string };
+    patient: { name: string; age: number; gender: string };
+    note: ConsultNote | null;
+    /** The current (unvoided) version, if one has been issued. */
+    prescription: Prescription | null;
+    previousVersions: PrescriptionVersion[];
+}
+
+/** Events on the room's `consult-events` data topic. The server sends these too; receivers dedupe. */
+export type ConsultRoomEvent =
+    | { v: 1; type: 'PRESCRIPTION_DRAFTING'; consultationId: string }
+    | { v: 1; type: 'PRESCRIPTION_ISSUED'; consultationId: string; prescriptionId: string };
