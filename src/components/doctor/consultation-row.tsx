@@ -14,7 +14,7 @@ export function ConsultationRow({ item }: { item: DoctorConsultation }) {
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-      onPress={() => router.push({ pathname: '/doctor/consultations/[id]', params: { id: item.id } })}
+      onPress={() => router.push({ pathname: '/doctor/consultations/[id]' as any, params: { id: item.id } })}
       accessibilityRole="button"
       accessibilityHint="Opens the consultation"
       accessibilityLabel={`${item.patientName}, ${when}, Indian time, ${status.label}`}>
