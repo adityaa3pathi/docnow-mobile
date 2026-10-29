@@ -14,6 +14,22 @@ import { hapticImpact, hapticNotify, ImpactFeedbackStyle, NotificationFeedbackTy
 import { addressesApi, locationApi, slotsApi } from '@/lib/tests/api';
 import type { Address, Slot } from '@/lib/tests/types';
 
+function withTimeout<T>(promise: Promise<T>, ms = 8000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('geocode timeout')), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 // Countdown switches to the warning treatment once this many seconds remain
 const EXPIRING_SOON_SECONDS = 180;
 
@@ -67,7 +83,7 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
         // Auto-geocode if coordinates are missing from the address
         if (!finalLat || !finalLong) {
           try {
-            const geoRes = await locationApi.geocode(address.pincode);
+            const geoRes = await withTimeout(locationApi.geocode(address.pincode), 8000);
             if (geoRes?.lat && geoRes?.long) {
               finalLat = geoRes.lat;
               finalLong = geoRes.long;
@@ -75,7 +91,7 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
               addressesApi.patchCoords(address.id, finalLat, finalLong).catch(() => {});
             }
           } catch {
-            // Geocoding failed, fallback to Delhi coords below
+            // Geocoding failed or timed out, fallback to Delhi coords below
           }
         }
 
@@ -104,28 +120,34 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
     };
   }, [selectedDate, address?.id, address?.pincode, address?.lat, address?.long]);
 
-  // Handle countdown timer & auto-refreeze at 3 minutes (180s)
+  // Pure 1-second interval countdown
   useEffect(() => {
-    if (!frozenSlotId || secondsRemaining === null) return;
+    if (!frozenSlotId) return;
 
     const timer = setInterval(() => {
-      setSecondsRemaining((prev) => {
-        if (prev === null) return null;
-        if (prev <= 1) {
-          setFrozenSlotId(null);
-          Alert.alert('Slot Released', 'Your slot reservation expired. Please pick a slot again.');
-          return null;
-        }
-        if (prev === 180 && frozenSlotId) {
-          // Silent re-freeze at 3 mins
-          slotsApi.freeze(frozenSlotId).catch(() => {});
-        }
-        return prev - 1;
-      });
+      setSecondsRemaining((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [frozenSlotId, secondsRemaining]);
+  }, [frozenSlotId]);
+
+  // Dedicated side-effect watcher for silent re-freeze at 180s and expiry
+  useEffect(() => {
+    if (!frozenSlotId || secondsRemaining === null) return;
+
+    if (secondsRemaining === 180) {
+      // Silent re-freeze with partner at 3-minute remaining mark
+      slotsApi.freeze(frozenSlotId).catch(() => {});
+    }
+
+    if (secondsRemaining === 0) {
+      Alert.alert('Slot Released', 'Your slot reservation has expired. Please select a slot again.');
+      queueMicrotask(() => {
+        setFrozenSlotId(null);
+        setSecondsRemaining(null);
+      });
+    }
+  }, [secondsRemaining, frozenSlotId]);
 
   const handlePickSlot = async (s: Slot) => {
     try {
@@ -182,11 +204,11 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
       {secondsRemaining !== null && (
         <View style={[styles.timerBanner, expiringSoon && styles.timerBannerWarning]}>
           {expiringSoon ? (
-            <Text style={[styles.timerText, styles.timerTextWarning]}>
+            <Text testID="slot-freeze-countdown" style={[styles.timerText, styles.timerTextWarning]}>
               ⚠️ Expiring Soon: <Text style={styles.timerBold}>{formatTimer(secondsRemaining)}</Text>
             </Text>
           ) : (
-            <Text style={styles.timerText}>
+            <Text testID="slot-freeze-countdown" style={styles.timerText}>
               ⏱ Slot reserved for <Text style={styles.timerBold}>{formatTimer(secondsRemaining)}</Text>
             </Text>
           )}
@@ -218,11 +240,11 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
       <Text style={styles.sectionTitle}>Select 1-Hour Time Window</Text>
 
       {loading ? (
-        <View style={styles.slotsContainer}>
+        <View testID="slots-loading" style={styles.slotsContainer}>
           <SlotPillsSkeleton count={6} />
         </View>
       ) : slots.length === 0 ? (
-        <View style={styles.emptyBox}>
+        <View testID="slots-empty" style={styles.emptyBox}>
           <Text style={styles.emptyText}>No slots available for this date. Please pick another date.</Text>
         </View>
       ) : (
@@ -238,6 +260,7 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
                   return (
                     <Pressable
                       key={s.stm_id}
+                      testID={`slot-${s.stm_id}`}
                       onPress={() => handlePickSlot(s)}
                       style={[styles.slotPill, isSelected && styles.slotPillActive]}>
                       <Text style={[styles.slotText, isSelected && styles.textActive]}>
@@ -265,6 +288,7 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
                   return (
                     <Pressable
                       key={s.stm_id}
+                      testID={`slot-${s.stm_id}`}
                       onPress={() => handlePickSlot(s)}
                       style={[styles.slotPill, isSelected && styles.slotPillActive]}>
                       <Text style={[styles.slotText, isSelected && styles.textActive]}>
@@ -287,6 +311,7 @@ export function SlotPicker({ address, selectedSlot, onSlotSelect }: Props) {
                   return (
                     <Pressable
                       key={s.stm_id}
+                      testID={`slot-${s.stm_id}`}
                       onPress={() => handlePickSlot(s)}
                       style={[styles.slotPill, isSelected && styles.slotPillActive]}>
                       <Text style={[styles.slotText, isSelected && styles.textActive]}>

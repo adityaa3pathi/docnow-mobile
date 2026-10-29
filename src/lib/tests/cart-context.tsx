@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { cartApi } from './api';
 import type { Cart, CartItem } from './types';
@@ -23,37 +23,50 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(false);
-  const [mutating, setMutating] = useState(false);
+  const [pending, setPending] = useState(0);
+
+  const issued = useRef(0);
+  const applied = useRef(0);
+
+  const apply = useCallback((requestId: number, next: Cart | null) => {
+    if (requestId < applied.current) return; // a newer response already landed
+    applied.current = requestId;
+    setCart(next);
+  }, []);
+
+  const userId = user?.id ?? null;
 
   const fetchCart = useCallback(async (): Promise<Cart | null> => {
-    if (!user) {
+    if (!userId) {
       setCart(null);
       return null;
     }
+    const id = ++issued.current;
     try {
       setLoading(true);
       const data = await cartApi.get();
-      setCart(data);
+      apply(id, data);
       return data;
     } catch {
-      setCart(null);
+      apply(id, null);
       return null;
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [apply, userId]);
 
   useEffect(() => {
+    if (!userId) {
+      queueMicrotask(() => setCart(null));
+      return;
+    }
+
     let cancelled = false;
-    Promise.resolve()
-      .then(() => {
-        if (!user) {
-          if (!cancelled) setCart(null);
-          return null;
-        }
-        return cartApi.get().then((data) => {
-          if (!cancelled) setCart(data);
-        });
+    const id = ++issued.current;
+    cartApi
+      .get()
+      .then((data) => {
+        if (!cancelled) apply(id, data);
       })
       .catch(() => {
         if (!cancelled) setCart(null);
@@ -62,64 +75,71 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [apply, userId]);
 
   const addToCart = useCallback(
     async (testCode: string, patientId?: string): Promise<boolean> => {
+      const id = ++issued.current;
+      setPending((n) => n + 1);
       try {
-        setMutating(true);
         const updated = await cartApi.addItem(testCode, patientId);
-        setCart(updated);
+        apply(id, updated);
         return true;
       } catch {
         return false;
       } finally {
-        setMutating(false);
+        setPending((n) => n - 1);
       }
     },
-    [],
+    [apply],
   );
 
-  const removeFromCart = useCallback(async (itemId: string): Promise<boolean> => {
-    try {
-      setMutating(true);
-      const updated = await cartApi.removeItem(itemId);
-      setCart(updated);
-      return true;
-    } catch {
-      return false;
-    } finally {
-      setMutating(false);
-    }
-  }, []);
+  const removeFromCart = useCallback(
+    async (itemId: string): Promise<boolean> => {
+      const id = ++issued.current;
+      setPending((n) => n + 1);
+      try {
+        const updated = await cartApi.removeItem(itemId);
+        apply(id, updated);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        setPending((n) => n - 1);
+      }
+    },
+    [apply],
+  );
 
   const assignPatient = useCallback(
     async (itemId: string, patientId: string | null): Promise<boolean> => {
+      const id = ++issued.current;
+      setPending((n) => n + 1);
       try {
-        setMutating(true);
         const updated = await cartApi.assignPatient(itemId, patientId);
-        setCart(updated);
+        apply(id, updated);
         return true;
       } catch {
         return false;
       } finally {
-        setMutating(false);
+        setPending((n) => n - 1);
       }
     },
-    [],
+    [apply],
   );
 
   const clearCart = useCallback(async (): Promise<void> => {
+    const id = ++issued.current;
+    setPending((n) => n + 1);
     try {
-      setMutating(true);
       await cartApi.clear();
-      setCart(null);
+      apply(id, null);
     } catch {
       //
     } finally {
-      setMutating(false);
+      setPending((n) => n - 1);
     }
-  }, []);
+  }, [apply]);
 
   const items = useMemo(() => cart?.items || [], [cart]);
   const cartCount = items.length;
@@ -137,7 +157,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       items,
       cartCount,
       loading,
-      mutating,
+      mutating: pending > 0,
       refreshCart: fetchCart,
       addToCart,
       removeFromCart,
@@ -145,7 +165,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       clearCart,
       getItemCount,
     }),
-    [cart, items, cartCount, loading, mutating, fetchCart, addToCart, removeFromCart, assignPatient, clearCart, getItemCount],
+    [
+      cart,
+      items,
+      cartCount,
+      loading,
+      pending,
+      fetchCart,
+      addToCart,
+      removeFromCart,
+      assignPatient,
+      clearCart,
+      getItemCount,
+    ],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

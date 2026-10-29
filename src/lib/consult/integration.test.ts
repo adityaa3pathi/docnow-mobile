@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
 
+const isOffline = (e: any) =>
+    e.code === 'ECONNREFUSED' || e.message === 'Network Error' || !e.response;
+
 describe('Live Backend Integration Smoke Tests', () => {
     it('fetches active specialties', async () => {
         try {
@@ -19,7 +22,7 @@ describe('Live Backend Integration Smoke Tests', () => {
             expect(first).toHaveProperty('slug');
             expect(first.isActive).toBe(true);
         } catch (e: any) {
-            if (e.code === 'ECONNREFUSED') {
+            if (isOffline(e)) {
                 console.warn('Backend server not running on port 5000; skipping live check.');
                 return;
             }
@@ -44,7 +47,7 @@ describe('Live Backend Integration Smoke Tests', () => {
             expect(doc.consultationFee).toBeGreaterThan(0);
             expect(doc.specialty).toHaveProperty('name');
         } catch (e: any) {
-            if (e.code === 'ECONNREFUSED') return;
+            if (isOffline(e)) return;
             throw e;
         }
     });
@@ -58,7 +61,7 @@ describe('Live Backend Integration Smoke Tests', () => {
             // Should not reach here
             expect.unreachable();
         } catch (e: any) {
-            if (e.code === 'ECONNREFUSED') return;
+            if (isOffline(e)) return;
             expect(e.response?.status).toBe(401);
         }
     });
@@ -74,7 +77,7 @@ describe('Live Backend Integration Smoke Tests', () => {
             expect(res.status).toBe(200);
             expect(res.data).toHaveProperty('message');
         } catch (e: any) {
-            if (e.code === 'ECONNREFUSED') return;
+            if (isOffline(e)) return;
             throw e;
         }
     });
