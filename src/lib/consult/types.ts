@@ -67,6 +67,31 @@ export interface BookingView extends CreateBookingResponse {
     hasPrescription?: boolean;
     prescriptionId?: string | null;
     rxStatus?: 'ISSUED' | 'DRAFTING' | 'PENDING' | 'NOT_REQUIRED';
+    // Waiting room (older servers leave these out).
+    doctorPhotoUrl?: string | null;
+    doctorQualification?: string;
+    /** The doctor has entered the video room for this consultation. */
+    doctorJoined?: boolean;
+    /** From here, a doctor who has not joined counts as late and the patient gets options. */
+    doctorLateAt?: string;
+    /** If the doctor still has not joined by here, the server refunds in full by itself. */
+    doctorNoShowAt?: string;
+    cancelReason?: string | null;
+}
+
+/** The next free doctor offered when the booked doctor is late. */
+export interface ReassignOption {
+    slot: { id: string; startsAt: string; endsAt: string };
+    doctor: {
+        id: string;
+        displayName: string;
+        photoUrl: string | null;
+        qualification: string;
+        experienceYears: number;
+        languages: string[];
+        consultationFee: number;
+        specialty: string;
+    };
 }
 
 export type VerifyOutcome = 'confirmed' | 'reclaimed' | 'already' | 'refund_created' | 'flagged' | 'unknown_order';

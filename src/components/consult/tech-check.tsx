@@ -1,0 +1,227 @@
+import {
+  getRecordingPermissionsAsync,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from 'expo-audio';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { Colors, Radius } from '@/constants/theme';
+import { hapticNotify, NotificationFeedbackType } from '@/lib/haptics';
+
+type MicState = 'unknown' | 'needs-permission' | 'denied' | 'testing' | 'ready' | 'quiet' | 'error';
+type CamState = 'unknown' | 'needs-permission' | 'denied' | 'checking' | 'ready' | 'error';
+
+/** Speech at a normal distance is well above this; silence or a covered mic stays below it. */
+const HEARD_DB = -45;
+const MIC_TEST_MS = 3_000;
+const PREVIEW_AFTER_READY_MS = 6_000;
+
+/** -160…0 dBFS to a 0…1 bar. */
+const levelFromDb = (db: number) => Math.min(1, Math.max(0, (db + 60) / 60));
+
+function Status({ ok, label, testID }: { ok: boolean | null; label: string; testID: string }) {
+  return (
+    <View style={[styles.status, ok === true ? styles.statusOk : ok === false ? styles.statusBad : styles.statusIdle]} testID={testID}>
+      <Text style={[styles.statusText, ok === true ? styles.textOk : ok === false ? styles.textBad : styles.textIdle]}>{label}</Text>
+    </View>
+  );
+}
+
+/**
+ * Camera and microphone check before the call. It asks for permission only when the person taps,
+ * shows a short self-view for the camera, and listens for 3 seconds to prove the mic picks them up.
+ * `paused` stops the preview so it never fights the call for the camera.
+ */
+export function TechCheck({ paused = false }: { paused?: boolean }) {
+  const [camPerm, requestCam] = useCameraPermissions();
+  const [cam, setCam] = useState<CamState>('unknown');
+  const [preview, setPreview] = useState(false);
+  const [mic, setMic] = useState<MicState>('unknown');
+  const [level, setLevel] = useState(0);
+  const recorder = useAudioRecorder({ ...RecordingPresets.LOW_QUALITY, isMeteringEnabled: true });
+  const alive = useRef(true);
+
+  useEffect(() => {
+    alive.current = true;
+    let cancelled = false;
+    getRecordingPermissionsAsync()
+      .then((p) => {
+        if (!cancelled) setMic(p.granted ? 'unknown' : p.canAskAgain ? 'needs-permission' : 'denied');
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      alive.current = false;
+    };
+  }, []);
+
+  // The self-view switches itself off a few seconds after it worked.
+  useEffect(() => {
+    if (cam !== 'ready' || !preview) return;
+    const t = setTimeout(() => setPreview(false), PREVIEW_AFTER_READY_MS);
+    return () => clearTimeout(t);
+  }, [cam, preview]);
+
+  const camGranted = camPerm?.granted ?? false;
+  const camShown: CamState = cam !== 'unknown' ? cam : camPerm && !camGranted ? (camPerm.canAskAgain ? 'needs-permission' : 'denied') : 'unknown';
+
+  async function checkCamera() {
+    if (camShown === 'denied') {
+      void Linking.openSettings();
+      return;
+    }
+    if (!camGranted) {
+      const res = await requestCam();
+      if (!res.granted) {
+        setCam(res.canAskAgain ? 'needs-permission' : 'denied');
+        return;
+      }
+    }
+    setCam('checking');
+    setPreview(true);
+  }
+
+  async function testMic() {
+    if (mic === 'denied') {
+      void Linking.openSettings();
+      return;
+    }
+    const perm = await requestRecordingPermissionsAsync();
+    if (!perm.granted) {
+      setMic(perm.canAskAgain ? 'needs-permission' : 'denied');
+      return;
+    }
+    setMic('testing');
+    setLevel(0);
+    let peak = -160;
+    try {
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      const poll = setInterval(() => {
+        const m = recorder.getStatus().metering;
+        if (typeof m === 'number') {
+          peak = Math.max(peak, m);
+          if (alive.current) setLevel(levelFromDb(m));
+        }
+      }, 100);
+      await new Promise((r) => setTimeout(r, MIC_TEST_MS));
+      clearInterval(poll);
+      await recorder.stop();
+      if (!alive.current) return;
+      const heard = peak >= HEARD_DB;
+      setMic(heard ? 'ready' : 'quiet');
+      hapticNotify(heard ? NotificationFeedbackType.Success : NotificationFeedbackType.Warning);
+    } catch {
+      if (alive.current) setMic('error');
+    } finally {
+      // The call sets up its own audio session; leave recording off until then.
+      setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+      if (alive.current) setLevel(0);
+    }
+  }
+
+  const camLabel = {
+    unknown: 'Camera not checked',
+    'needs-permission': 'Camera permission needed',
+    denied: 'Camera blocked in Settings',
+    checking: 'Checking camera…',
+    ready: '✓ Camera Ready',
+    error: 'Camera did not start',
+  }[camShown];
+  const micLabel = {
+    unknown: 'Microphone not tested',
+    'needs-permission': 'Microphone permission needed',
+    denied: 'Microphone blocked in Settings',
+    testing: 'Listening… say something',
+    ready: '✓ Microphone Ready',
+    quiet: 'We could not hear you',
+    error: 'Microphone did not start',
+  }[mic];
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.title} accessibilityRole="header">Camera & microphone check</Text>
+
+      <View style={styles.row}>
+        <View style={styles.flex}>
+          <Text style={styles.label}>📷 Camera</Text>
+          <Status ok={camShown === 'ready' ? true : camShown === 'denied' || camShown === 'error' ? false : null} label={camLabel} testID="tech-camera-status" />
+        </View>
+        <Pressable
+          style={[styles.btn, camShown === 'checking' && styles.dim]}
+          disabled={camShown === 'checking'}
+          onPress={() => void checkCamera()}
+          accessibilityRole="button"
+          accessibilityLabel={camShown === 'denied' ? 'Open settings to allow the camera' : 'Check camera'}>
+          <Text style={styles.btnText}>{camShown === 'denied' ? 'Settings' : camShown === 'ready' ? 'Check again' : 'Check'}</Text>
+        </Pressable>
+      </View>
+      {preview && !paused ? (
+        <View style={styles.preview}>
+          <CameraView
+            style={styles.previewVideo}
+            facing="front"
+            onCameraReady={() => {
+              setCam('ready');
+              hapticNotify(NotificationFeedbackType.Success);
+            }}
+            onMountError={() => {
+              setCam('error');
+              setPreview(false);
+            }}
+          />
+          <Text style={styles.previewHint}>This is how your doctor will see you</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.row}>
+        <View style={styles.flex}>
+          <Text style={styles.label}>🎙 Microphone</Text>
+          <Status ok={mic === 'ready' ? true : mic === 'denied' || mic === 'error' || mic === 'quiet' ? false : null} label={micLabel} testID="tech-mic-status" />
+          {mic === 'testing' ? (
+            <View style={styles.meter} accessibilityLabel="Microphone level">
+              <View style={[styles.meterFill, { width: `${Math.round(level * 100)}%` }]} />
+            </View>
+          ) : null}
+        </View>
+        <Pressable
+          style={[styles.btn, mic === 'testing' && styles.dim]}
+          disabled={mic === 'testing'}
+          onPress={() => void testMic()}
+          accessibilityRole="button"
+          accessibilityLabel={mic === 'denied' ? 'Open settings to allow the microphone' : 'Test microphone'}>
+          {mic === 'testing' ? <ActivityIndicator color={Colors.primary} /> : <Text style={styles.btnText}>{mic === 'denied' ? 'Settings' : 'Test'}</Text>}
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: { gap: 12, padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
+  title: { fontSize: 16, fontWeight: '700', color: Colors.foreground },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  flex: { flex: 1, gap: 6 },
+  label: { fontSize: 13, fontWeight: '700', color: Colors.foreground },
+  status: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full },
+  statusOk: { backgroundColor: Colors.successTint },
+  statusBad: { backgroundColor: Colors.warningTint },
+  statusIdle: { backgroundColor: Colors.cardMuted },
+  statusText: { fontSize: 12, fontWeight: '700' },
+  textOk: { color: Colors.success },
+  textBad: { color: Colors.warning },
+  textIdle: { color: Colors.mutedForeground },
+  btn: { minWidth: 84, minHeight: 40, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.primary },
+  btnText: { color: Colors.primary, fontWeight: '700' },
+  dim: { opacity: 0.6 },
+  preview: { gap: 6, alignItems: 'center' },
+  previewVideo: { width: 160, height: 200, borderRadius: Radius.lg, overflow: 'hidden', backgroundColor: '#0F172A' },
+  previewHint: { fontSize: 12, color: Colors.mutedForeground },
+  meter: { height: 6, borderRadius: Radius.full, backgroundColor: Colors.cardMuted, overflow: 'hidden' },
+  meterFill: { height: 6, backgroundColor: Colors.success },
+});

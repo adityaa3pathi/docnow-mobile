@@ -5,8 +5,8 @@ import { api, errorMessage } from '@/lib/api';
 import type {
     AvailabilityWindow, BookingView, CancelPreview, CancelResult, CartAddResult, ConsultNote, ConsultationStatus,
     CreateBookingResponse, DoctorConsultationPage, DoctorConsultationRecord, DoctorMe, DoctorProfileInput,
-    DoctorPublicProfile, DoctorSummary, JoinResponse, LeaveEntry, NoteInput, Prescription, PrescriptionInput, Slot,
-    Specialty, VerifyResponse,
+    DoctorPublicProfile, DoctorSummary, JoinResponse, LeaveEntry, NoteInput, Prescription, PrescriptionInput, ReassignOption,
+    Slot, Specialty, VerifyResponse,
 } from './types';
 
 export interface Person {
@@ -52,6 +52,12 @@ export const consult = {
     prescription: (id: string) => get<Prescription>(`/api/consult/bookings/${id}/prescription`),
     prescriptionPdfUrl: (id: string) => `${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/consult/bookings/${id}/prescription.pdf`,
     addTestsToCart: (id: string) => post<CartAddResult>(`/api/consult/bookings/${id}/recommended-tests/cart`),
+    // Doctor running late: each answers 409 until the server sees the doctor 5+ minutes late.
+    rescheduleSlots: (id: string) => get<Slot[]>(`/api/consult/bookings/${id}/reschedule-slots`),
+    reschedule: (id: string, newSlotId: string) => post<BookingView>(`/api/consult/bookings/${id}/reschedule`, { newSlotId }),
+    reassignOption: (id: string) =>
+        get<{ option: ReassignOption | null }>(`/api/consult/bookings/${id}/reassign-option`).then((r) => r.option),
+    reassign: (id: string, slotId: string) => post<BookingView>(`/api/consult/bookings/${id}/reassign`, { slotId }),
 };
 
 export const people = {

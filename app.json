@@ -55,7 +55,21 @@
           ]
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "DocNow uses your camera for video consultations with your doctor.",
+          "microphonePermission": "DocNow uses your microphone so your doctor can hear you during consultations.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "DocNow uses your microphone so your doctor can hear you during consultations."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

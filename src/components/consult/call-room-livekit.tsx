@@ -21,7 +21,7 @@ import { CONNECT_OPTIONS, buildRoomOptions } from '@/lib/consult/roomOptions';
 import { useDoctorPresence } from '@/lib/consult/useDoctorPresence';
 import { useNetworkAdaptation } from '@/lib/consult/useNetworkAdaptation';
 import type { ConsultRoomEvent } from '@/lib/consult/types';
-import type { RoomTools } from './call-room-view';
+import type { RoomTools, WaitingAidContext } from './call-room-view';
 import { NetworkBanner } from './network-banner';
 import { PatientPrescription } from './patient-prescription';
 import { ReconnectOverlay } from './reconnect-overlay';
@@ -42,6 +42,7 @@ export interface Props {
   onLeave: () => void;
   renderTools?: (tools: RoomTools) => React.ReactNode;
   toolsLabel?: string;
+  renderWaitingAid?: (ctx: WaitingAidContext) => React.ReactNode;
 }
 
 export const CONSULT_EVENTS_TOPIC = 'consult-events';
@@ -52,11 +53,14 @@ function ToolsSheet({
   open,
   onToggle,
   renderTools,
+  lowerPill,
 }: {
   label: string;
   open: boolean;
   onToggle: () => void;
   renderTools: (tools: RoomTools) => React.ReactNode;
+  /** Sits below the patient's prescription pill instead of on top of it. */
+  lowerPill?: boolean;
 }) {
   const room = useRoomContext();
   const tools = useMemo<RoomTools>(
@@ -71,7 +75,7 @@ function ToolsSheet({
 
   if (!open) {
     return (
-      <Pressable style={styles.openSplitPill} onPress={onToggle} accessibilityRole="button" accessibilityLabel={`Open ${label}`}>
+      <Pressable style={[styles.openSplitPill, lowerPill && styles.lowerPill]} onPress={onToggle} accessibilityRole="button" accessibilityLabel={`Open ${label}`}>
         <Text style={styles.openSplitText}>📝 {label}</Text>
       </Pressable>
     );
@@ -250,6 +254,7 @@ function InCallExperience({
   isDoctor,
   renderTools,
   toolsLabel,
+  renderWaitingAid,
 }: {
   consultationId?: string;
   otherPartyName?: string;
@@ -258,8 +263,10 @@ function InCallExperience({
   isDoctor: boolean;
   renderTools?: (tools: RoomTools) => React.ReactNode;
   toolsLabel: string;
+  renderWaitingAid?: (ctx: WaitingAidContext) => React.ReactNode;
 }) {
   const connectionState = useConnectionState();
+  const presence = useDoctorPresence(otherPartyName);
   const { isAudioOnlyDegraded, tryVideoAgain } = useNetworkAdaptation();
   const [isDoctorDrafting, setIsDoctorDrafting] = useState(false);
   const [hasIssuedPrescription, setHasIssuedPrescription] = useState(false);
@@ -298,7 +305,9 @@ function InCallExperience({
     connectionState === ConnectionState.Reconnecting || (reconnectState?.isReconnecting ?? false);
 
   const canShowSplit = Boolean(splitPrescriptionOpen && consultationId);
-  const showTools = isDoctor && !!renderTools;
+  // The patient's own notes share the sheet slot with the prescription, so only one is open at a time.
+  const showTools = !!renderTools && (isDoctor || !canShowSplit);
+  const waitingAid = !isDoctor && renderWaitingAid ? renderWaitingAid({ doctorPresent: presence.status !== 'waiting' }) : null;
 
   return (
     <View style={styles.roomRoot}>
@@ -333,7 +342,13 @@ function InCallExperience({
         />
 
         {showTools && renderTools ? (
-          <ToolsSheet label={toolsLabel} open={toolsOpen} onToggle={() => setToolsOpen((o) => !o)} renderTools={renderTools} />
+          <ToolsSheet label={toolsLabel} open={toolsOpen} onToggle={() => setToolsOpen((o) => !o)} renderTools={renderTools} lowerPill={!isDoctor} />
+        ) : null}
+
+        {waitingAid ? (
+          <ScrollView style={styles.waitingAid} contentContainerStyle={styles.waitingAidPad} pointerEvents="box-none">
+            {waitingAid}
+          </ScrollView>
         ) : null}
 
         {canShowSplit && (
@@ -416,6 +431,7 @@ export function CallRoomLiveKit(props: Props) {
             isDoctor={props.role.startsWith('doctor')}
             renderTools={props.renderTools}
             toolsLabel={props.toolsLabel ?? 'Prescription pad'}
+            renderWaitingAid={props.renderWaitingAid}
           />
         </LiveKitRoom>
       </View>
@@ -524,6 +540,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '600',
+  },
+  lowerPill: {
+    top: 104,
+  },
+  waitingAid: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
+    maxHeight: '72%',
+    zIndex: 30,
+  },
+  waitingAidPad: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
   },
   openSplitPill: {
     position: 'absolute',

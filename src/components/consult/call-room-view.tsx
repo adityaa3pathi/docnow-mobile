@@ -16,6 +16,13 @@ export interface Props {
   /** Doctor tools shown in a collapsible sheet during the call (e.g. the prescription pad). */
   renderTools?: (tools: RoomTools) => React.ReactNode;
   toolsLabel?: string;
+  /** Patient only: shown over the call while the doctor is not in the room (the late-doctor card). */
+  renderWaitingAid?: (ctx: WaitingAidContext) => React.ReactNode;
+}
+
+export interface WaitingAidContext {
+  /** The doctor is connected to the room right now (live presence, not the booking record). */
+  doctorPresent: boolean;
 }
 
 export interface RoomTools {

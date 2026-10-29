@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BookingSummary } from '@/components/consult/booking-summary';
@@ -9,16 +9,20 @@ import { CancelSheet } from '@/components/consult/cancel-sheet';
 import { JoinPanel } from '@/components/consult/join-panel';
 import { PatientPrescription } from '@/components/consult/patient-prescription';
 import { PrescriptionTimeline } from '@/components/consult/prescription-timeline';
+import { QuestionsNotepad } from '@/components/consult/questions-notepad';
+import { InCallDelay, WaitingRoom } from '@/components/consult/waiting-room';
 import { CheckingNotice, ConfirmingNotice, PaymentStatus } from '@/components/consult/payment-status';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
 import { NotificationPrompt } from '@/components/notifications/notification-prompt';
 import { Colors, Radius } from '@/constants/theme';
 import { useBookingFlow } from '@/hooks/use-booking-flow';
+import { useServerNow } from '@/hooks/use-server-now';
 import { consult } from '@/lib/consult/api';
 import { formatCountdown } from '@/lib/consult/bookingFlow';
 import { formatPaise } from '@/lib/consult/format';
 import { statusInfo } from '@/lib/consult/status';
 import type { BookingView, JoinResponse } from '@/lib/consult/types';
+import { showWaitingRoom } from '@/lib/consult/waitingRoom';
 
 const REFUND_TEXT = {
   PENDING: 'Refund on its way',
@@ -60,6 +64,25 @@ export default function BookingScreen() {
   }, [busyPaying]);
 
   const options = <Stack.Screen options={{ headerBackVisible: !busyPaying, gestureEnabled: !busyPaying }} />;
+
+  // The waiting room takes over 15 minutes before the start; re-checked every 15 seconds.
+  const now = useServerNow(15_000);
+  const waiting = !!booking && decision?.kind === 'result' && showWaitingRoom(booking, now);
+
+  // While waiting, re-read the booking so "doctor is in the room" and late options appear on time.
+  const pollBooking = useEffectEvent(() => void flow.refetch());
+  const inCall = activeCall !== null;
+  useEffect(() => {
+    if (!waiting || inCall) return;
+    const t = setInterval(pollBooking, 10_000);
+    return () => clearInterval(t);
+  }, [waiting, inCall]);
+
+  const afterDelayAction = () => {
+    setActiveCall(null);
+    void flow.refetch();
+    void queryClient.invalidateQueries({ queryKey: ['consult', 'bookings'] });
+  };
 
   if (flow.loading && !booking) return <LoadingBlock label="Loading booking" />;
   if (!booking || !decision) {
@@ -126,15 +149,26 @@ export default function BookingScreen() {
           <PaymentStatus result={decision.result} fresh={fresh} statusLabel={info.label} doctorId={booking.doctorId} />
           {summary}
           <RefundLine booking={booking} />
-          <JoinPanel
-            status={booking.status}
-            type={booking.type}
-            startsAt={booking.startsAt}
-            endsAt={booking.endsAt}
-            join={() => consult.join(booking.consultationId)}
-            onJoined={(res) => setActiveCall(res)}
-            autoJoin={joinParam === '1'}
-          />
+          {waiting && booking.type !== 'CHAT' ? (
+            <WaitingRoom
+              booking={booking}
+              join={() => consult.join(booking.consultationId)}
+              onJoined={(res) => setActiveCall(res)}
+              inCall={inCall}
+              autoJoin={joinParam === '1'}
+              onResolved={afterDelayAction}
+            />
+          ) : (
+            <JoinPanel
+              status={booking.status}
+              type={booking.type}
+              startsAt={booking.startsAt}
+              endsAt={booking.endsAt}
+              join={() => consult.join(booking.consultationId)}
+              onJoined={(res) => setActiveCall(res)}
+              autoJoin={joinParam === '1'}
+            />
+          )}
           {booking.status === 'CONFIRMED' || booking.status === 'WAITING' ? (
             <NotificationPrompt
               title="Know the moment your doctor joins"
@@ -186,6 +220,11 @@ export default function BookingScreen() {
         role={activeCall?.role ?? 'patient'}
         consultationId={booking.consultationId}
         otherPartyName={`Dr. ${booking.doctorName}`}
+        toolsLabel="My questions"
+        renderTools={() => <QuestionsNotepad consultationId={booking.consultationId} inCall />}
+        renderWaitingAid={({ doctorPresent }) => (
+          <InCallDelay booking={booking} doctorPresent={doctorPresent} onResolved={afterDelayAction} />
+        )}
         onLeave={() => {
           setActiveCall(null);
           void flow.refetch();
