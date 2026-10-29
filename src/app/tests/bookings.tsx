@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors, Radius } from '@/constants/theme';
+import { errorMessage } from '@/lib/api';
 import { formatRupees } from '@/lib/consult/format';
 import { bookingsApi, invoicesApi } from '@/lib/tests/api';
 import type { TestBooking } from '@/lib/tests/types';
@@ -23,6 +24,7 @@ export default function TestBookingsScreen() {
   const [bookings, setBookings] = useState<TestBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [openingInvoiceId, setOpeningInvoiceId] = useState<string | null>(null);
 
   const fetchBookings = React.useCallback(async () => {
     try {
@@ -87,14 +89,25 @@ export default function TestBookingsScreen() {
     router.push({ pathname: '/records/report/[id]', params: { id: reportId } });
   };
 
+  // Like reports, the invoice opens through a signed link: a browser cannot send the sign-in header.
   const handleDownloadInvoice = async (bookingId: string) => {
-    const url = invoicesApi.downloadUrl(bookingId);
+    setOpeningInvoiceId(bookingId);
+    let url: string;
+    try {
+      url = invoicesApi.publicUrl((await invoicesApi.link(bookingId)).token);
+    } catch (e) {
+      Alert.alert('Invoice', errorMessage(e, 'We could not prepare your invoice. Please try again.'));
+      setOpeningInvoiceId(null);
+      return;
+    }
     try {
       await WebBrowser.openBrowserAsync(url);
     } catch {
       Linking.openURL(url).catch(() => {
         Alert.alert('Download Error', 'Could not open invoice.');
       });
+    } finally {
+      setOpeningInvoiceId(null);
     }
   };
 
@@ -187,8 +200,12 @@ export default function TestBookingsScreen() {
           <View style={styles.actionRow}>
             <Pressable
               onPress={() => handleDownloadInvoice(item.id)}
+              disabled={openingInvoiceId !== null}
+              accessibilityRole="button"
+              accessibilityLabel="Open invoice"
+              accessibilityState={{ busy: openingInvoiceId === item.id }}
               hitSlop={8}>
-              <Text style={styles.invoiceLink}>Invoice</Text>
+              <Text style={styles.invoiceLink}>{openingInvoiceId === item.id ? 'Opening…' : 'Invoice'}</Text>
             </Pressable>
 
             {!isCancelled && !isCompleted && (

@@ -287,7 +287,18 @@ export const reportsApi = {
 };
 
 export const invoicesApi = {
+  /** Needs the Authorization header, so a browser cannot open it; the app uses `publicUrl(link(...))`. */
   downloadUrl: (bookingId: string): string => {
     return `${process.env.EXPO_PUBLIC_API_URL || ''}/api/invoices/booking/${bookingId}/download`;
+  },
+
+  /** A signed, expiring token for the confirmed booking's invoice. 400 until the booking is paid. */
+  link: async (bookingId: string): Promise<{ token: string; expiresInHours: number }> => {
+    const { data } = await api.get(`/api/invoices/booking/${bookingId}/link`, { timeout: 10_000 });
+    return data;
+  },
+
+  publicUrl: (token: string): string => {
+    return `${process.env.EXPO_PUBLIC_API_URL || ''}/api/invoices/public/${token}`;
   },
 };
