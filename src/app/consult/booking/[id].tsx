@@ -10,6 +10,7 @@ import { PatientPrescription } from '@/components/consult/patient-prescription';
 import { CheckingNotice, ConfirmingNotice, PaymentStatus } from '@/components/consult/payment-status';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
 import { Colors, Radius } from '@/constants/theme';
+import { loadActiveBooking } from '@/lib/consult/store';
 import { useBookingFlow } from '@/hooks/use-booking-flow';
 import { consult } from '@/lib/consult/api';
 import { formatCountdown } from '@/lib/consult/bookingFlow';
@@ -42,11 +43,19 @@ export default function BookingScreen() {
 
   // Opens checkout once, right after the booking is created.
   useEffect(() => {
-    if (autoPay && !autoOpened.current && decision?.kind === 'pay' && !flow.payStillLanding) {
-      autoOpened.current = true;
-      void pay();
-    }
-  }, [autoPay, decision?.kind, pay, flow.payStillLanding]);
+    if (!autoPay || autoOpened.current || decision?.kind !== 'pay' || flow.payStillLanding) return;
+    autoOpened.current = true;
+    // Any app or page can open docnow://…?pay=1, so only the booking created here may auto-open checkout.
+    void loadActiveBooking().then((saved) => {
+      if (saved?.id === id) void pay();
+    });
+  }, [autoPay, decision?.kind, pay, flow.payStillLanding, id]);
+
+  // My consultations must not show "Continue to pay" for a booking that just confirmed.
+  const settled = decision?.kind === 'result' ? decision.result : null;
+  useEffect(() => {
+    if (settled) void queryClient.invalidateQueries({ queryKey: ['consult', 'bookings'] });
+  }, [settled, queryClient]);
 
   // A second payment while the first may still land charges the patient twice (refunded later).
   const onPayPress = () => {
@@ -83,6 +92,8 @@ export default function BookingScreen() {
   const info = statusInfo(booking.status);
   const fresh = autoPay || flow.paidHere;
   const paidButUnsettled = booking.status === 'PENDING_PAYMENT' && (booking.paymentCaptured || flow.paidHere);
+  // The server sends ₹0 and refuses cancels for these; showing either would mislead.
+  const forYou = !!booking.isBookedForYou;
   const summary = (
     <BookingSummary
       doctorName={booking.doctorName}
@@ -90,12 +101,12 @@ export default function BookingScreen() {
       startsAt={booking.startsAt}
       endsAt={booking.endsAt}
       personName={booking.patientName}
-      amount={formatPaise(booking.amountPaise)}
-      amountLabel="Amount"
+      amount={forYou ? `Paid by ${booking.bookedBy?.name ?? 'your family member'}` : formatPaise(booking.amountPaise)}
+      amountLabel={forYou ? 'Payment' : 'Amount'}
     />
   );
 
-  const canCancel = info.canCancel && decision.kind !== 'poll' && !booking.underStaffCheck && !paidButUnsettled;
+  const canCancel = info.canCancel && !forYou && decision.kind !== 'poll' && !booking.underStaffCheck && !paidButUnsettled;
 
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
@@ -129,6 +140,10 @@ export default function BookingScreen() {
       {decision.kind === 'poll' && (
         <>
           {booking.paymentCaptured || flow.paidHere ? <ConfirmingNotice /> : <CheckingNotice />}
+          {/* The last good answer stays on screen, so a dead connection must be said out loud. */}
+          {flow.error ? (
+            <Text style={styles.note} accessibilityRole="alert">{`We cannot reach DocNow right now (${flow.error.message}). We will keep checking.`}</Text>
+          ) : null}
           {summary}
           <View style={[styles.button, styles.disabled]} accessibilityRole="button" accessibilityLabel="Pay, not available right now" accessibilityState={{ disabled: true }}>
             <Text style={styles.buttonText}>Pay</Text>
@@ -137,9 +152,9 @@ export default function BookingScreen() {
       )}
       {decision.kind === 'result' && (
         <>
-          <PaymentStatus result={decision.result} fresh={fresh} statusLabel={info.label} doctorId={booking.doctorId} />
+          <PaymentStatus result={decision.result} fresh={fresh} statusLabel={info.label} doctorId={booking.doctorId} verifyOutcome={flow.verifyOutcome} />
           {summary}
-          <RefundLine booking={booking} />
+          {forYou ? null : <RefundLine booking={booking} />}
           <JoinPanel
             status={booking.status}
             type={booking.type}

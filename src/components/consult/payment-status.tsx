@@ -4,6 +4,7 @@ import { AccessibilityInfo, findNodeHandle, Pressable, StyleSheet, Text, View } 
 
 import { Radius } from '@/constants/theme';
 import type { ResultKind } from '@/lib/consult/bookingFlow';
+import type { VerifyOutcome } from '@/lib/consult/types';
 import { CONFIRMING_MESSAGE, HOLD_ENDED_MESSAGE, toneColors, VERIFY_MESSAGES, type Tone } from '@/lib/consult/status';
 
 interface Props {
@@ -12,12 +13,15 @@ interface Props {
   fresh: boolean;
   statusLabel: string;
   doctorId: string;
+  /** What the payment check said, so a slot reclaimed by a late payment is explained. */
+  verifyOutcome?: VerifyOutcome | null;
 }
 
-function copy(result: ResultKind, fresh: boolean, statusLabel: string): { title: string; body: string; tone: Tone } {
+function copy(result: ResultKind, fresh: boolean, statusLabel: string, outcome?: VerifyOutcome | null): { title: string; body: string; tone: Tone } {
   switch (result) {
     case 'booked':
-      return fresh ? VERIFY_MESSAGES.confirmed : { title: statusLabel, body: '', tone: 'success' };
+      if (!fresh) return { title: statusLabel, body: '', tone: 'success' };
+      return outcome === 'reclaimed' || outcome === 'already' ? VERIFY_MESSAGES[outcome] : VERIFY_MESSAGES.confirmed;
     case 'refund':
       return VERIFY_MESSAGES.refund_created;
     case 'checking':
@@ -32,9 +36,9 @@ function copy(result: ResultKind, fresh: boolean, statusLabel: string): { title:
 }
 
 /** One message per outcome, announced to screen readers. Done goes to My consultations. */
-export function PaymentStatus({ result, fresh, statusLabel, doctorId }: Props) {
+export function PaymentStatus({ result, fresh, statusLabel, doctorId, verifyOutcome }: Props) {
   const heading = useRef<Text>(null);
-  const { title, body, tone } = copy(result, fresh, statusLabel);
+  const { title, body, tone } = copy(result, fresh, statusLabel, verifyOutcome);
   const colors = toneColors[tone];
 
   useEffect(() => {

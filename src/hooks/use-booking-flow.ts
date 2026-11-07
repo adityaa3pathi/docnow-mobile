@@ -154,8 +154,9 @@ export function useBookingFlow(id: string, enabled: boolean) {
     void (async () => {
       const saved = await loadActiveBooking();
       if (saved?.id !== id || saved.userId !== userId) return;
-      // A dead booking must not hand its key to the next attempt.
-      if (result !== 'booked') await forgetKey(saved.slotId, saved.patientId);
+      // A settled booking must not hand its key to the next attempt, booked ones included:
+      // after a later cancel, rebooking that slot replayed the dead key and hit "booking ended".
+      await forgetKey(saved.slotId, saved.patientId);
       const current = await loadActiveBooking();
       if (current?.id === id) await clearActiveBooking();
     })();
@@ -180,8 +181,14 @@ export function useBookingFlow(id: string, enabled: boolean) {
       try {
         const out = await consult.verify(id, res);
         if (alive.current) setHint(out.outcome);
-      } catch {
-        // A failed verify says nothing about the payment, so the load below decides.
+      } catch (e) {
+        // A 5xx or timeout says nothing, so the poll decides. A 4xx is the server's answer: this
+        // payment will never confirm, so say why instead of "confirming" for ten minutes.
+        const status = errorStatus(e);
+        if (status && status >= 400 && status < 500 && alive.current) {
+          setConfirmStartedAt(null);
+          setPayNote(`We could not accept this payment: ${friendlyError(e)} If money was taken, it is refunded automatically.`);
+        }
       }
       await load();
     },
@@ -243,6 +250,7 @@ export function useBookingFlow(id: string, enabled: boolean) {
 
   return {
     booking, loading, error, decision, secondsLeft, announcement, payNote, opening, paidHere: confirmStartedAt !== null, refetch: load, pay,
+    verifyOutcome: hint,
     /** A payment opened here in the last 10 minutes may still land; ask before paying again. */
     payStillLanding,
     minutesSinceCheckout: checkoutOpenedAt === null ? null : Math.max(0, Math.round((serverNow(now) - checkoutOpenedAt) / 60_000)),

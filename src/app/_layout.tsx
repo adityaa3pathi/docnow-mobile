@@ -4,7 +4,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useResumeBooking } from '@/hooks/use-resume-booking';
 import { apiConfigured } from '@/lib/api';
@@ -20,8 +20,20 @@ function ResumeBooking() {
   return null;
 }
 
+function Offline({ onRetry }: { onRetry: () => void }) {
+  return (
+    <View style={styles.config} accessibilityRole="alert">
+      <Text style={styles.configTitle}>Cannot reach DocNow</Text>
+      <Text style={styles.configText}>Check your internet connection. You are still signed in.</Text>
+      <Pressable onPress={onRetry} style={styles.retry} accessibilityRole="button" accessibilityLabel="Try again">
+        <Text style={styles.retryText}>Try again</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function Routes() {
-  const { user, loading } = useAuth();
+  const { user, loading, offline, retry } = useAuth();
   const queryClient = useQueryClient();
 
   // The next account on this phone must never see the last one's cached bookings.
@@ -34,6 +46,7 @@ function Routes() {
   }, [loading]);
 
   if (loading) return null;
+  if (!user && offline) return <Offline onRetry={retry} />;
 
   return (
     <>
@@ -69,6 +82,8 @@ const styles = StyleSheet.create({
   config: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 8 },
   configTitle: { fontSize: 18, fontWeight: '700' },
   configText: { textAlign: 'center' },
+  retry: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: '#4b2192' },
+  retryText: { color: '#fff', fontWeight: '700' },
 });
 
 export default function RootLayout() {

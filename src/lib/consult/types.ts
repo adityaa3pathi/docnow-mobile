@@ -65,6 +65,10 @@ export interface BookingView extends CreateBookingResponse {
     refundStatus: 'PENDING' | 'PROCESSED' | 'FAILED' | null;
     type: ConsultationType;
     hasPrescription: boolean;
+    /** Booked by a family member for this user: they never pay, cancel or see a refund here. */
+    isBookedForYou?: boolean;
+    bookedBy?: { name: string; relation: string };
+    familyAccess?: 'linked' | 'pending';
 }
 
 export type VerifyOutcome = 'confirmed' | 'reclaimed' | 'already' | 'refund_created' | 'flagged' | 'unknown_order';
