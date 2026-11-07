@@ -9,6 +9,13 @@ export function doctorScreen(me: DoctorMe | null | undefined): DoctorScreen {
     case 'PENDING': return 'pending';
     case 'REJECTED': return 'rejected';
     case 'SUSPENDED': return 'suspended';
-    default: return 'home';
+    case 'APPROVED': return 'home';
+    default: return notApproved(me.status);
   }
+}
+
+/** A status this build does not know must never unlock the approved area, so it waits on the pending screen.
+ *  The `never` parameter makes a new server status a build error here instead of a silent fall-through. */
+function notApproved(_unknown: never): DoctorScreen {
+  return 'pending';
 }

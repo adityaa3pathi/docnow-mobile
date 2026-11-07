@@ -1,10 +1,11 @@
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { TestPicker } from '@/components/doctor/test-picker';
 import { ActionButton, Card, Notice } from '@/components/doctor/ui';
 import { Colors, Radius } from '@/constants/theme';
+import { useUnsavedWarning } from '@/hooks/use-unsaved-warning';
 import { doctor as doctorApi, friendlyError } from '@/lib/consult/api';
 import { REISSUE_REASON_MAX, REISSUE_REASON_MIN, buildPrescription, builderFromPrescription, emptyBuilder, emptyMedicine, parseTestCodes } from '@/lib/consult/room';
 import type { Medicine, Prescription, PrescriptionInput } from '@/lib/consult/types';
@@ -43,6 +44,13 @@ export function PrescriptionBuilder({ consultationId, correcting, onIssued, onCa
     onSuccess: onIssued,
     onError: (e) => setError(friendlyError(e)),
   });
+
+  const edited = useMemo(
+    () => JSON.stringify({ rows, codes, advice }) !== JSON.stringify(initial) || reason.trim() !== '',
+    [rows, codes, advice, reason, initial],
+  );
+  // Once the issue is on its way the typing is no longer at risk, so a successful issue must not block leaving.
+  useUnsavedWarning(edited && !issue.isPending && !issue.isSuccess);
 
   const setCell = (i: number, key: keyof Medicine, value: string) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: value } : r)));

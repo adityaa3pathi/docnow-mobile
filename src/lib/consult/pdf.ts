@@ -2,8 +2,11 @@
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
+import { NotAPdfError, looksLikePdf } from './pdfBytes';
+
 /** Saves PDF bytes to the app cache, then opens the phone's share sheet so the user can open or save it. */
 export async function sharePdf(data: ArrayBuffer, fileName: string) {
+  if (!looksLikePdf(data)) throw new NotAPdfError();
   const file = new File(Paths.cache, fileName);
   file.create({ overwrite: true });
   file.write(new Uint8Array(data));

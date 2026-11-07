@@ -1,7 +1,7 @@
 // Copied from docnowtesting/client/src/lib/consult/availability.ts
 /** Pure helpers for weekly hours and leave. All times are Indian time (no daylight saving, always UTC+5:30). */
 import type { AvailabilityWindow } from './types';
-import { minutesToTime, timeToMinutes, WEEKDAYS } from './time';
+import { minutesToTime, serverNow, timeToMinutes, WEEKDAYS } from './time';
 
 export const SLOT_OPTIONS = [10, 15, 20, 30, 45, 60];
 
@@ -88,10 +88,16 @@ export function isoToIstLocal(iso: string): string {
     return new Date(Date.parse(iso) + IST_OFFSET_MS).toISOString().slice(0, 16);
 }
 
-export function validateLeave(startLocal: string, endLocal: string): { error: string } | { startsAt: string; endsAt: string } {
+/** A range that already ended is refused here: the server saves it but `GET /me/leave` hides it, so it would vanish. */
+export function validateLeave(
+    startLocal: string,
+    endLocal: string,
+    nowMs: number = serverNow(),
+): { error: string } | { startsAt: string; endsAt: string } {
     const startsAt = istLocalToIso(startLocal);
     const endsAt = istLocalToIso(endLocal);
     if (!startsAt || !endsAt) return { error: 'Choose both a start and an end.' };
     if (Date.parse(endsAt) <= Date.parse(startsAt)) return { error: 'The end must be after the start.' };
+    if (Date.parse(endsAt) <= nowMs) return { error: 'That leave has already finished. Pick an end time in the future.' };
     return { startsAt, endsAt };
 }

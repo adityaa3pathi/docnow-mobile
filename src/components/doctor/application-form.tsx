@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
 import { EmptyState, ErrorState, LoadingBlock } from '@/components/consult/states';
@@ -7,6 +7,7 @@ import { RejectedNotice } from '@/components/doctor/status-screens';
 import { ActionButton, Card, Notice } from '@/components/doctor/ui';
 import { Colors, Radius } from '@/constants/theme';
 import { DOCTOR_ME_KEY } from '@/hooks/use-doctor-me';
+import { useUnsavedWarning } from '@/hooks/use-unsaved-warning';
 import { consult, doctor as doctorApi, errorStatus, friendlyError } from '@/lib/consult/api';
 import { validateDoctorForm, type DoctorFormErrors, type DoctorFormValues } from '@/lib/consult/doctorForm';
 import type { DoctorMe } from '@/lib/consult/types';
@@ -45,6 +46,7 @@ function Field({ label, hint, error, ...input }: { label: string; hint?: string;
 export function ApplicationForm({ existing }: { existing?: DoctorMe }) {
   const queryClient = useQueryClient();
   const specialties = useQuery({ queryKey: ['consult', 'specialties'], queryFn: consult.specialties });
+  const [initial] = useState(() => JSON.stringify(fromExisting(existing)));
   const [values, setValues] = useState<DoctorFormValues>(() => fromExisting(existing));
   const [errors, setErrors] = useState<DoctorFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -58,6 +60,10 @@ export function ApplicationForm({ existing }: { existing?: DoctorMe }) {
       );
     },
   });
+
+  const edited = useMemo(() => JSON.stringify(values) !== initial, [values, initial]);
+  // A sent application flips the doctor's status, which moves the screen on its own; that must not be blocked.
+  useUnsavedWarning(edited && !send.isPending && !send.isSuccess);
 
   const set = (key: keyof DoctorFormValues) => (text: string) => setValues((v) => ({ ...v, [key]: text }));
 

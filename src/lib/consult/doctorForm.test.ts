@@ -62,6 +62,10 @@ describe('doctor screen', () => {
     expect(doctorScreen(me('SUSPENDED'))).toBe('suspended');
     expect(doctorScreen(me('APPROVED'))).toBe('home');
   });
+  it('keeps a status this build does not know out of the approved area', () => {
+    expect(doctorScreen(me('BANNED' as DoctorMe['status']))).toBe('pending');
+    expect(doctorScreen({ status: undefined } as unknown as DoctorMe)).toBe('pending');
+  });
 });
 
 describe('picker time under other time zones', () => {
@@ -93,12 +97,17 @@ describe('picker time under other time zones', () => {
 });
 
 describe('leave', () => {
+  const NOW = Date.parse('2026-10-07T06:30:00.000Z');
+
   it('refuses a range that ends at or before its start', () => {
-    expect(validateLeave('2026-10-07T10:00', '2026-10-07T10:00')).toEqual({ error: 'The end must be after the start.' });
-    expect(validateLeave('2026-10-07T10:00', '2026-10-07T09:00')).toHaveProperty('error');
+    expect(validateLeave('2026-10-07T10:00', '2026-10-07T10:00', NOW)).toEqual({ error: 'The end must be after the start.' });
+    expect(validateLeave('2026-10-07T10:00', '2026-10-07T09:00', NOW)).toHaveProperty('error');
   });
-  it('does not refuse a start in the past', () => {
-    expect(validateLeave('2020-01-01T10:00', '2020-01-01T11:00')).toHaveProperty('startsAt');
+  it('does not refuse a start in the past while the end is still ahead', () => {
+    expect(validateLeave('2020-01-01T10:00', '2026-10-08T11:00', NOW)).toHaveProperty('startsAt');
+  });
+  it('refuses leave that is entirely in the past', () => {
+    expect(validateLeave('2020-01-01T10:00', '2020-01-01T11:00', NOW)).toHaveProperty('error');
   });
   it('words the booked conflicts note', () => {
     expect(conflictMessage(0)).toMatch(/No patients were booked/);
