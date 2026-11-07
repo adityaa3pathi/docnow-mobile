@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ActionButton, Card, Notice } from '@/components/doctor/ui';
@@ -23,7 +23,13 @@ const fromNote = (n: ConsultNote | null): Form => ({
   followUp: n?.followUpDays ? String(n.followUpDays) : '',
 });
 
+/** Lets the screen save pending notes before issuing, which locks them for good. */
+export interface NotesHandle {
+  flush: () => Promise<boolean>;
+}
+
 interface Props {
+  ref?: Ref<NotesHandle>;
   consultationId: string;
   note: ConsultNote | null;
   /** Why notes cannot be edited right now, or null when they can. */
@@ -31,36 +37,59 @@ interface Props {
 }
 
 /** Private doctor notes. Saves when a field loses focus, or on Save. */
-export function NotesForm({ consultationId, note, lockedReason }: Props) {
+export function NotesForm({ ref, consultationId, note, lockedReason }: Props) {
   const [form, setForm] = useState<Form>(() => fromNote(note));
   const saved = useRef(JSON.stringify(fromNote(note)));
   const [savedAt, setSavedAt] = useState<string | null>(note?.updatedAt ?? null);
   const [saving, setSaving] = useState(false);
+  const inFlight = useRef<Promise<boolean> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const locked = lockedReason !== null;
 
-  async function save(force: boolean) {
+  /** True when nothing is left unsaved. */
+  async function save(force: boolean): Promise<boolean> {
     const snapshot = JSON.stringify(form);
-    if (locked || saving || (!force && snapshot === saved.current)) return;
+    if (locked || (!force && snapshot === saved.current)) return true;
+    if (inFlight.current) return false; // a ref, not state: a closure can hold stale "saving"
     const days = parseFollowUp(form.followUp);
     if (days === undefined) {
       setError('Follow-up must be a whole number of days, 1 to 365.');
-      return;
+      return false;
     }
     setSaving(true);
     setError(null);
+    const run = doSave(snapshot, days);
+    inFlight.current = run;
+    try {
+      return await run;
+    } finally {
+      inFlight.current = null;
+      setSaving(false);
+    }
+  }
+
+  async function doSave(snapshot: string, days: number | null): Promise<boolean> {
     try {
       const res = await doctorApi.saveNotes(consultationId, {
         complaints: form.complaints, findings: form.findings, diagnosis: form.diagnosis, advice: form.advice, followUpDays: days,
       });
       saved.current = snapshot;
       setSavedAt(res.updatedAt);
+      return true;
     } catch (e) {
       setError(friendlyError(e));
-    } finally {
-      setSaving(false);
+      return false;
     }
   }
+
+  // Tapping Issue does not blur the field being typed in, so its last edit would never save.
+  // A blur-save may still be running: wait for it, then save whatever changed after it.
+  useImperativeHandle(ref, () => ({
+    flush: async () => {
+      if (inFlight.current) await inFlight.current;
+      return save(false);
+    },
+  }));
 
   const set = (key: keyof Form) => (text: string) => setForm((f) => ({ ...f, [key]: text }));
 

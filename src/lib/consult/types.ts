@@ -192,7 +192,23 @@ export interface DoctorConsultationRecord {
     type: ConsultationType;
     startsAt: string;
     slot: { endsAt: string };
-    patient: { name: string; age: number; gender: string };
+    patient: {
+        name: string;
+        age: number;
+        gender: string;
+        relation: string;
+        preferredLanguage: string;
+        bloodGroup: string | null;
+        allergies: string[];
+        chronicConditions: string[];
+        currentMedications: string[];
+    };
+    /** Family bookings: who booked and whether they join to assist. */
+    caregiver: { name: string; relation: string; coJoining: boolean; joinedAt: string | null } | null;
+    /** DocNow lab reports the booker shared; each opens through a signed link. */
+    attachedReports: { id: string; label: string; isFullReport: boolean; date: string | null; viewToken: string }[];
+    /** Photos and PDFs the booker uploaded, as signed links valid for an hour. */
+    attachments: { id: string; name: string; mimeType: string; sizeBytes: number; uploadedAt: string; url: string }[];
     patientJoinedAt: string | null;
     doctorJoinedAt: string | null;
     note: ConsultNote | null;

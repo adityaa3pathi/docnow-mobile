@@ -22,11 +22,13 @@ interface Props {
   /** When set, the form corrects this version: it starts pre-filled and needs a reason. */
   correcting?: Prescription;
   onIssued: (p: Prescription) => void;
+  /** Runs before a first issue; false stops it (notes lock once a prescription is issued). */
+  beforeIssue?: () => Promise<boolean>;
   onCancel?: () => void;
 }
 
 /** Issues a prescription, or a corrected next version. Both ask for a confirm because neither can be undone. */
-export function PrescriptionBuilder({ consultationId, correcting, onIssued, onCancel }: Props) {
+export function PrescriptionBuilder({ consultationId, correcting, onIssued, onCancel, beforeIssue }: Props) {
   const [initial] = useState(() => (correcting ? builderFromPrescription(correcting) : emptyBuilder()));
   const [rows, setRows] = useState<Medicine[]>(initial.rows);
   const [codes, setCodes] = useState(initial.codes);
@@ -63,7 +65,16 @@ export function PrescriptionBuilder({ consultationId, correcting, onIssued, onCa
         : 'The patient sees it straight away and your notes lock. Any later correction is kept as a new version.',
       [
         { text: 'Go back', style: 'cancel' },
-        { text: correcting ? 'Issue corrected version' : 'Issue prescription', onPress: () => issue.mutate(built.body) },
+        {
+          text: correcting ? 'Issue corrected version' : 'Issue prescription',
+          onPress: async () => {
+            if (beforeIssue && !(await beforeIssue())) {
+              setError('Your notes could not be saved, so the prescription was not issued. Check the notes above and try again.');
+              return;
+            }
+            issue.mutate(built.body);
+          },
+        },
       ],
     );
   }
