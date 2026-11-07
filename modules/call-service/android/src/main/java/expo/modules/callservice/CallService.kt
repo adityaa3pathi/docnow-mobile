@@ -35,6 +35,8 @@ class CallService : Service() {
 
   // Swiping the app away ends the call, so the notification must not outlive it.
   override fun onTaskRemoved(rootIntent: Intent?) {
+    // Lets JS leave the LiveKit room before Android tears the process down.
+    taskRemovedListener?.invoke()
     stopSelf()
   }
 
@@ -64,7 +66,7 @@ class CallService : Service() {
     return builder
       .setContentTitle("Consultation in progress")
       .setContentText("Tap to return to your call")
-      .setSmallIcon(applicationInfo.icon)
+      .setSmallIcon(R.drawable.ic_docnow_call)
       .setOngoing(true)
       .setContentIntent(tap)
       .build()
@@ -74,5 +76,9 @@ class CallService : Service() {
     private const val TAG = "CallService"
     private const val CHANNEL_ID = "consultation_call"
     private const val NOTIFICATION_ID = 4711
+
+    /** Set by the module while it is alive; the service and the module are separate instances. */
+    @Volatile
+    var taskRemovedListener: (() -> Unit)? = null
   }
 }

@@ -24,6 +24,12 @@
     "android": {
       "package": "in.docnow.app",
       "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.BLUETOOTH_CONNECT"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#4b2192",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
