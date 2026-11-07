@@ -7,6 +7,7 @@ import {
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { startCallService, stopCallService } from '../../../modules/call-service';
 import { Colors, Radius } from '@/constants/theme';
 import { callEvents, type CallEventName } from '@/lib/consult/api';
 import { arrangeTiles, formatDuration, partyOfRole } from '@/lib/consult/callLayout';
@@ -158,10 +159,13 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
         setNotice('media');
         report('media_failed', reasonCode(err));
       }
+      // Android: keeps the mic alive if the patient switches apps mid-call.
+      if (!closed) startCallService();
     })();
 
     return () => {
       closed = true;
+      stopCallService();
       for (const ev of REDRAW) room.off(ev, redraw);
       room.off(RoomEvent.Disconnected, onDisconnected);
       room.off(RoomEvent.Reconnected, onReconnected);
