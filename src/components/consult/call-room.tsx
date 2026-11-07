@@ -5,9 +5,9 @@ import {
   ConnectionError, ConnectionErrorReason, ConnectionQuality, DisconnectReason, LocalVideoTrack, Room, RoomEvent, Track, type Participant,
 } from 'livekit-client';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, PermissionsAndroid, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { startCallService, stopCallService } from '../../../modules/call-service';
+import { addTaskRemovedListener, startCallService, stopCallService } from '../../../modules/call-service';
 import { Colors, Radius } from '@/constants/theme';
 import { callEvents, type CallEventName } from '@/lib/consult/api';
 import { arrangeTiles, formatDuration, partyOfRole, videoFit } from '@/lib/consult/callLayout';
@@ -65,6 +65,19 @@ function classify(err: unknown): ErrorKind {
 function reasonCode(err: unknown): string {
   if (err instanceof ConnectionError) return `${ConnectionErrorReason[err.reason]}${err.status ? `:${err.status}` : ''}`;
   return err instanceof Error ? err.name : 'unknown';
+}
+
+/**
+ * Android 12+ picks the audio route when the session starts, so the headset prompt has to
+ * come first. Optional: without it the call just stays on the speaker.
+ */
+async function askForBluetooth() {
+  if (Platform.OS !== 'android' || Number(Platform.Version) < 31) return;
+  try {
+    await PermissionsAndroid.request('android.permission.BLUETOOTH_CONNECT');
+  } catch {
+    // A denied or unavailable prompt must not stop the consultation.
+  }
 }
 
 function cameraRef(p: Participant | undefined): TrackReference | undefined {
@@ -139,8 +152,13 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
     for (const ev of REDRAW) room.on(ev, redraw);
     room.on(RoomEvent.Disconnected, onDisconnected);
     room.on(RoomEvent.Reconnected, onReconnected);
+    // Swiping the app away never unmounts this screen, so the room is left here instead.
+    // Best effort: Android may kill the process before the signal reaches the server.
+    const swiped = addTaskRemovedListener(() => void room.disconnect().catch(() => {}));
 
     void (async () => {
+      await askForBluetooth();
+      if (closed) return;
       try {
         await AudioSession.startAudioSession();
         if (closed) return;
@@ -159,12 +177,16 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
         setNotice('media');
         report('media_failed', reasonCode(err));
       }
-      // Android: keeps the mic alive if the patient switches apps mid-call.
-      if (!closed) startCallService();
+      if (closed) return;
+      // Android: keeps the mic alive if the patient switches apps mid-call. A false result
+      // means backgrounding will cut the call, which the doctor's side needs to know about.
+      const started = await startCallService();
+      if (started === false && !closed) report('media_failed', 'call_service_unavailable');
     })();
 
     return () => {
       closed = true;
+      swiped?.remove();
       stopCallService();
       for (const ev of REDRAW) room.off(ev, redraw);
       room.off(RoomEvent.Disconnected, onDisconnected);

@@ -3,6 +3,8 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+  <!-- Android 13+ hides the "Consultation in progress" notification until this is granted at runtime. -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <application>
     <service
       android:name=".CallService"
