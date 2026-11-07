@@ -25,3 +25,10 @@ export function arrangeTiles<T extends { identity: string }>(remotes: T[], viewe
 export function formatDuration(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
 }
+
+/** Fill the box unless that would crop away more than 30%, e.g. a landscape doctor on a portrait phone. */
+export function videoFit(videoW: number, videoH: number, boxW: number, boxH: number): 'cover' | 'contain' {
+  if (!videoW || !videoH || !boxW || !boxH) return 'cover';
+  const ratio = (videoW / videoH) / (boxW / boxH);
+  return Math.min(ratio, 1 / ratio) < 0.7 ? 'contain' : 'cover';
+}

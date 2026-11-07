@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { arrangeTiles, formatDuration, partyOf, partyOfRole } from './callLayout';
+import { arrangeTiles, formatDuration, partyOf, partyOfRole, videoFit } from './callLayout';
 
 const p = (identity: string) => ({ identity });
 
@@ -36,5 +36,12 @@ describe('parties', () => {
 describe('formatDuration', () => {
   it('pads seconds', () => {
     expect(formatDuration(65)).toBe('1:05');
+  });
+});
+
+describe('videoFit', () => {
+  it('shows a landscape laptop camera whole in the portrait call area', () => {
+    expect(videoFit(1280, 720, 360, 500)).toBe('contain');
+    expect(videoFit(720, 1280, 360, 500)).toBe('cover');
   });
 });

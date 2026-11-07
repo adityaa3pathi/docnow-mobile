@@ -10,7 +10,7 @@ import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, useWind
 import { startCallService, stopCallService } from '../../../modules/call-service';
 import { Colors, Radius } from '@/constants/theme';
 import { callEvents, type CallEventName } from '@/lib/consult/api';
-import { arrangeTiles, formatDuration, partyOfRole } from '@/lib/consult/callLayout';
+import { arrangeTiles, formatDuration, partyOfRole, videoFit } from '@/lib/consult/callLayout';
 import { callStage, isAudioRole } from '@/lib/consult/roomText';
 
 interface Props {
@@ -108,7 +108,7 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
   'use no memo';
   useKeepAwake(); // a quiet stretch of the consultation must not lock the phone
   const navigation = useNavigation();
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [room] = useState(() => new Room({ adaptiveStream: { pixelDensity: 'screen' }, dynacast: true }));
   const [error, setError] = useState<ErrorKind | null>(null);
   const [notice, setNotice] = useState<NoticeKind | null>(null);
@@ -246,6 +246,10 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
 
   const local = room.localParticipant;
   const remoteCam = cameraRef(remote);
+  const stageHeight = Math.round(height * 0.6);
+  // The publisher's resolution is known from the room, so a landscape laptop doctor isn't cropped to a sliver.
+  const dims = remoteCam?.publication.dimensions;
+  const remoteFit = dims ? videoFit(dims.width, dims.height, width, stageHeight) : 'cover';
   const localCam = videoAllowed ? cameraRef(local) : undefined;
   const micOn = local.isMicrophoneEnabled;
   const camOn = local.isCameraEnabled;
@@ -256,7 +260,7 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.stage, { height: Math.round(height * 0.6) }]}>
+      <View style={[styles.stage, { height: stageHeight }]}>
         {stage === 'connecting' ? (
           <View style={styles.center} accessibilityRole="progressbar" accessibilityLabel="Connecting">
             <ActivityIndicator color="#fff" />
@@ -267,7 +271,7 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
             <Text style={styles.stageText}>Waiting for the {otherParty} to join...</Text>
           </View>
         ) : remoteCam ? (
-          <VideoTrack trackRef={remoteCam} style={styles.fill} objectFit="cover" zOrder={0} />
+          <VideoTrack trackRef={remoteCam} style={styles.fill} objectFit={remoteFit} zOrder={0} />
         ) : (
           <Initial label={remoteLabel} />
         )}
@@ -297,13 +301,13 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
         ) : null}
         {connected ? (
           <View style={styles.topBar} pointerEvents="none">
-            <Text style={styles.pill}>{live && seconds > 0 ? formatDuration(seconds) : ' '}</Text>
+            {live && seconds > 0 ? <Text style={styles.pill}>{formatDuration(seconds)}</Text> : <View />}
             {reconnecting ? <Text style={styles.reconnecting} accessibilityLiveRegion="polite">Reconnecting...</Text> : null}
             {quality ? (
               <Text style={styles.pill} accessibilityLabel={`Connection: ${quality.text}`}>
                 <Text style={{ color: quality.color }}>● </Text>{quality.text}
               </Text>
-            ) : <Text style={styles.pill}> </Text>}
+            ) : <View />}
           </View>
         ) : null}
       </View>
