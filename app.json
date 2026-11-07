@@ -15,6 +15,9 @@
           "tez",
           "phonepe",
           "paytmmp"
+        ],
+        "UIBackgroundModes": [
+          "audio"
         ]
       }
     },

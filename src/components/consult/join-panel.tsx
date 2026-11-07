@@ -5,6 +5,7 @@ import { CallRoom } from '@/components/consult/call-room';
 import { Colors, Radius } from '@/constants/theme';
 import { useServerNow } from '@/hooks/use-server-now';
 import { friendlyError } from '@/lib/consult/api';
+import { CONSENT_REQUIRED_HINT, consentText } from '@/lib/consult/consent';
 import { joinWindow } from '@/lib/consult/room';
 import { formatIstDateTime } from '@/lib/consult/time';
 import type { ConsultationStatus, ConsultationType, JoinResponse } from '@/lib/consult/types';
@@ -19,23 +20,29 @@ interface Props {
   /** Called after a successful join and after leaving, so the screen can reload the status. */
   onChange?: () => void;
   onCallChange?: (inCall: boolean) => void;
+  /** Patient side: the NMC teleconsultation consent must be ticked before Join works. */
+  consentDoctorName?: string;
 }
 
 /** Shows when the call opens, the Join button inside the window, then the call itself. */
-export function JoinPanel({ status, type, startsAt, endsAt, otherParty, join, onChange, onCallChange }: Props) {
+export function JoinPanel({ status, type, startsAt, endsAt, otherParty, join, onChange, onCallChange, consentDoctorName }: Props) {
   const now = useServerNow();
   const [call, setCall] = useState<JoinResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [consented, setConsented] = useState(false);
+  const needsConsent = consentDoctorName !== undefined && !consented;
 
   if (call) {
     return (
       <CallRoom
-        key={call.token}
+        key={`${call.token}-${attempt}`}
         url={call.url}
         token={call.token}
         role={call.role}
         otherParty={otherParty}
+        onRetry={() => setAttempt((n) => n + 1)}
         onLeave={() => {
           setCall(null);
           onCallChange?.(false);
@@ -51,6 +58,7 @@ export function JoinPanel({ status, type, startsAt, endsAt, otherParty, join, on
   if (win.kind === 'not_joinable') return null;
 
   async function start() {
+    if (needsConsent) return;
     setBusy(true);
     setError(null);
     try {
@@ -69,17 +77,29 @@ export function JoinPanel({ status, type, startsAt, endsAt, otherParty, join, on
       <Text style={styles.title}>{type === 'AUDIO' ? 'Audio call' : 'Video call'}</Text>
       {win.kind === 'early' ? <Text style={styles.muted}>Join from {formatIstDateTime(win.opensAt)} (Indian time).</Text> : null}
       {win.kind === 'ended' ? <Text style={styles.muted}>The time to join this call has passed.</Text> : null}
+      {win.kind !== 'ended' && consentDoctorName !== undefined ? (
+        <Pressable
+          style={styles.consent}
+          onPress={() => setConsented((c) => !c)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: consented }}
+          accessibilityLabel={consentText(consentDoctorName)}>
+          <View style={[styles.box, consented && styles.boxOn]}>{consented ? <Text style={styles.tick}>✓</Text> : null}</View>
+          <Text style={styles.consentText}>{consentText(consentDoctorName)}</Text>
+        </Pressable>
+      ) : null}
       {win.kind === 'open' ? (
         <Pressable
-          style={[styles.button, busy && styles.off]}
-          disabled={busy}
+          style={[styles.button, (busy || needsConsent) && styles.off]}
+          disabled={busy || needsConsent}
           onPress={() => void start()}
           accessibilityRole="button"
           accessibilityLabel={busy ? 'Joining' : 'Join call'}
-          accessibilityState={{ disabled: busy, busy }}>
+          accessibilityState={{ disabled: busy || needsConsent, busy }}>
           {busy ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.buttonText}>Join call</Text>}
         </Pressable>
       ) : null}
+      {win.kind === 'open' && needsConsent ? <Text style={styles.hint}>{CONSENT_REQUIRED_HINT}</Text> : null}
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
     </View>
   );
@@ -92,5 +112,11 @@ const styles = StyleSheet.create({
   button: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.primary },
   buttonText: { color: Colors.primaryForeground, fontWeight: '700', fontSize: 16 },
   off: { opacity: 0.5 },
+  consent: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', minHeight: 44 },
+  box: { width: 24, height: 24, marginTop: 2, borderRadius: 6, borderWidth: 2, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  boxOn: { backgroundColor: Colors.primary },
+  tick: { color: Colors.primaryForeground, fontWeight: '800' },
+  consentText: { flex: 1, color: Colors.foreground, lineHeight: 20 },
+  hint: { textAlign: 'center', fontSize: 12, color: Colors.mutedForeground },
   error: { padding: 12, borderRadius: Radius.lg, backgroundColor: '#fef2f2', color: Colors.destructive, fontWeight: '600' },
 });

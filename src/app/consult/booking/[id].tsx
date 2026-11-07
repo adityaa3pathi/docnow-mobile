@@ -128,6 +128,7 @@ export default function BookingScreen() {
             startsAt={booking.startsAt}
             endsAt={booking.endsAt}
             otherParty="doctor"
+            consentDoctorName={booking.doctorName}
             join={() => consult.join(booking.consultationId)}
             onChange={() => void flow.refetch()}
           />

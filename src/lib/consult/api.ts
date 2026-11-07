@@ -6,6 +6,7 @@ import type {
     AvailabilityWindow, BookingView, DoctorConsultationPage, DoctorMe, DoctorProfileInput, LeaveEntry, CancelPreview, CancelResult, CreateBookingResponse, DoctorPublicProfile, DoctorSummary,
     Slot, Specialty, VerifyResponse, CartAddResult, ConsultNote, ConsultationStatus, DoctorConsultationRecord, JoinResponse, NoteInput, Prescription, PrescriptionInput,
 } from './types';
+import { CONSENT_VERSION } from './consent';
 
 export interface Person {
     id: string;
@@ -48,7 +49,8 @@ export const consult = {
         post<VerifyResponse>(`/api/consult/bookings/${id}/verify`, body),
     cancelPreview: (id: string) => get<CancelPreview>(`/api/consult/bookings/${id}/cancel-preview`),
     cancel: (id: string, reason?: string) => post<CancelResult>(`/api/consult/bookings/${id}/cancel`, { reason }),
-    join: (id: string) => post<JoinResponse>(`/api/consult/bookings/${id}/join`),
+    /** The server refuses the join without the NMC teleconsent the patient ticked on the join panel. */
+    join: (id: string) => post<JoinResponse>(`/api/consult/bookings/${id}/join`, { consent: true, consentVersion: CONSENT_VERSION, channel: 'app' }),
     prescription: (id: string) => get<Prescription>(`/api/consult/bookings/${id}/prescription`),
     prescriptionPdf: (id: string) => bytes(`/api/consult/bookings/${id}/prescription.pdf`),
     addTestsToCart: (id: string) => post<CartAddResult>(`/api/consult/bookings/${id}/recommended-tests/cart`),
@@ -81,4 +83,13 @@ export const doctor = {
     reissuePrescription: (id: string, body: { reason: string; prescription: PrescriptionInput }) =>
         post<Prescription>(`/api/doctor/me/consultations/${id}/prescription/reissue`, body),
     prescriptionPdf: (id: string) => bytes(`/api/doctor/me/consultations/${id}/prescription.pdf`),
+};
+
+export type CallEventName = 'connect_failed' | 'disconnected' | 'media_failed' | 'reconnected';
+
+/** The LiveKit join token is the credential. Every status resolves, so a 401 never triggers sign-out. */
+export const callEvents = {
+  report: (token: string, event: CallEventName, reason?: string): Promise<void> =>
+    api.post('/api/consult/call-events', { token, event, reason: reason?.slice(0, 200) }, { validateStatus: () => true, timeout: 5_000 })
+      .then(() => undefined),
 };
