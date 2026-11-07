@@ -2,10 +2,11 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { TestPicker } from '@/components/doctor/test-picker';
 import { ActionButton, Card, Notice } from '@/components/doctor/ui';
 import { Colors, Radius } from '@/constants/theme';
 import { doctor as doctorApi, friendlyError } from '@/lib/consult/api';
-import { REISSUE_REASON_MAX, REISSUE_REASON_MIN, buildPrescription, builderFromPrescription, emptyBuilder, emptyMedicine } from '@/lib/consult/room';
+import { REISSUE_REASON_MAX, REISSUE_REASON_MIN, buildPrescription, builderFromPrescription, emptyBuilder, emptyMedicine, parseTestCodes } from '@/lib/consult/room';
 import type { Medicine, Prescription, PrescriptionInput } from '@/lib/consult/types';
 
 const COLUMNS = [
@@ -94,9 +95,12 @@ export function PrescriptionBuilder({ consultationId, correcting, onIssued, onCa
       ))}
       <ActionButton label="Add medicine" variant="soft" disabled={rows.length >= 20} onPress={() => setRows((rs) => [...rs, emptyMedicine()])} />
       <View style={styles.field}>
-        <Text style={styles.label}>Recommended test codes</Text>
-        <TextInput style={styles.input} value={codes} onChangeText={setCodes} placeholder="e.g. CBC, TSH" placeholderTextColor={Colors.mutedForeground} autoCapitalize="characters" accessibilityLabel="Recommended test codes" />
-        <Text style={styles.hint}>Catalog test codes, separated by commas. Names show after you issue.</Text>
+        <Text style={styles.label}>Recommended tests</Text>
+        <TestPicker
+          selectedCodes={parseTestCodes(codes)}
+          onChange={(next) => setCodes(next.join(', '))}
+          knownNames={correcting && Object.fromEntries(correcting.recommendedTests.map((t) => [t.code, t.name]))}
+        />
       </View>
       <View style={styles.field}>
         <Text style={styles.label}>Advice</Text>

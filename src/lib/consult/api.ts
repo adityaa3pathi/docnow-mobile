@@ -93,3 +93,29 @@ export const callEvents = {
     api.post('/api/consult/call-events', { token, event, reason: reason?.slice(0, 200) }, { validateStatus: () => true, timeout: 5_000 })
       .then(() => undefined),
 };
+
+export interface CatalogTest {
+  partnerCode: string;
+  name: string;
+}
+
+/** Same cap as the server's prescription schema. */
+export const MAX_TESTS = 10;
+const TEST_TYPES = 'TEST,PROFILE';
+
+/** Tests for the doctor's picker: a search, or the featured tests (else A to Z) for an empty box. */
+export const catalog = {
+  tests: async (search: string): Promise<CatalogTest[]> => {
+    const get = (path: string, params: Record<string, string | number>) =>
+      api.get<{ products?: CatalogTest[] }>(path, { params }).then((r) => r.data.products ?? []);
+    if (search) return get('/api/catalog/products', { search, type: TEST_TYPES, limit: 20 });
+    const featured = await get('/api/catalog/featured', { type: TEST_TYPES, limit: 12 });
+    return featured.length ? featured : get('/api/catalog/products', { type: TEST_TYPES, limit: 20 });
+  },
+};
+
+/** Adds or removes a test code, never going past MAX_TESTS. */
+export function toggleTestCode(codes: string[], code: string): string[] {
+  if (codes.includes(code)) return codes.filter((c) => c !== code);
+  return codes.length >= MAX_TESTS ? codes : [...codes, code];
+}
