@@ -7,6 +7,14 @@ export const CONFIRM_WINDOW_MS = 60_000;
 export const EXPIRED_GRACE_MS = 120_000;
 export const LATE_WATCH_INTERVAL_MS = 15_000;
 export const LATE_WATCH_MAX_TICKS = 40;
+/** A UPI collect can land long after its checkout closed, or after Android killed the app. */
+export const RECENT_CHECKOUT_MS = 10 * 60_000;
+export const RECENT_CHECKOUT_POLL_MS = 5000;
+
+/** True while a payment opened here may still arrive, so Pay must not look like a fresh start. */
+export function recentCheckout(checkoutOpenedAt: number | null, nowMs: number): boolean {
+    return checkoutOpenedAt !== null && nowMs - checkoutOpenedAt < RECENT_CHECKOUT_MS && nowMs >= checkoutOpenedAt - 60_000;
+}
 
 export type ResultKind = 'booked' | 'refund' | 'checking' | 'hold_ended' | 'still_confirming' | 'closed';
 

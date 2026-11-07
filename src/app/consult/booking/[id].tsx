@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BookingSummary } from '@/components/consult/booking-summary';
 import { CancelSheet } from '@/components/consult/cancel-sheet';
@@ -42,11 +42,24 @@ export default function BookingScreen() {
 
   // Opens checkout once, right after the booking is created.
   useEffect(() => {
-    if (autoPay && !autoOpened.current && decision?.kind === 'pay') {
+    if (autoPay && !autoOpened.current && decision?.kind === 'pay' && !flow.payStillLanding) {
       autoOpened.current = true;
       void pay();
     }
-  }, [autoPay, decision?.kind, pay]);
+  }, [autoPay, decision?.kind, pay, flow.payStillLanding]);
+
+  // A second payment while the first may still land charges the patient twice (refunded later).
+  const onPayPress = () => {
+    if (!flow.payStillLanding) return void pay();
+    Alert.alert(
+      'Pay again?',
+      'You opened a payment a few minutes ago. If you paid in your UPI app, it can take a few minutes to show here. Paying again may charge you twice.',
+      [
+        { text: 'Wait', style: 'cancel' },
+        { text: 'Pay again', style: 'destructive', onPress: () => void pay() },
+      ],
+    );
+  };
 
   const busyPaying = flow.opening || decision?.kind === 'poll';
   // Back stays on this screen while checkout is open or a payment check is running.
@@ -97,10 +110,15 @@ export default function BookingScreen() {
           <Text accessibilityLiveRegion="polite" style={styles.hidden}>{flow.announcement}</Text>
           {summary}
           {flow.payNote ? <Text style={styles.note} accessibilityRole="alert">{flow.payNote}</Text> : null}
+          {flow.payStillLanding ? (
+            <Text style={styles.note} accessibilityLiveRegion="polite">
+              {`You opened a payment ${flow.minutesSinceCheckout ? `${flow.minutesSinceCheckout} min` : 'moments'} ago. If you paid in your UPI app, we are checking and this updates by itself. Please wait before paying again.`}
+            </Text>
+          ) : null}
           <Pressable
             style={[styles.button, flow.opening && styles.disabled]}
             disabled={flow.opening}
-            onPress={() => void pay()}
+            onPress={onPayPress}
             accessibilityRole="button"
             accessibilityLabel={flow.opening ? 'Opening payment' : `Pay ${formatPaise(booking.amountPaise)}`}
             accessibilityState={{ disabled: flow.opening, busy: flow.opening }}>

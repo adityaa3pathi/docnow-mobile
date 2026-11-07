@@ -214,3 +214,14 @@ describe('resumeAction', () => {
         expect(resumeAction(saved, 'u2', booking(), NOW)).toBe('keep');
     });
 });
+
+describe('recentCheckout', () => {
+  it('keeps a payment opened in the last 10 minutes from looking like a fresh start', async () => {
+    const { recentCheckout, RECENT_CHECKOUT_MS } = await import('./bookingFlow');
+    const t = 1_000_000;
+    expect(recentCheckout(null, t)).toBe(false);
+    expect(recentCheckout(t, t + 30_000)).toBe(true);
+    expect(recentCheckout(t, t + RECENT_CHECKOUT_MS - 1)).toBe(true);
+    expect(recentCheckout(t, t + RECENT_CHECKOUT_MS)).toBe(false);
+  });
+});

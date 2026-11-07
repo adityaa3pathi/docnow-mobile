@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, AppState, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/consult/badge';
 import { JoinPanel } from '@/components/consult/join-panel';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
 import { IssuedPrescription } from '@/components/doctor/issued-prescription';
-import { NotesForm } from '@/components/doctor/notes-form';
+import { NotesForm, type NotesHandle } from '@/components/doctor/notes-form';
+import { PatientDossier } from '@/components/doctor/patient-dossier';
 import { PrescriptionBuilder } from '@/components/doctor/prescription-builder';
 import { ActionButton, Card, Notice } from '@/components/doctor/ui';
 import { Colors } from '@/constants/theme';
@@ -27,6 +28,7 @@ export default function DoctorConsultationScreen() {
   // Bumped after ending, so the call panel remounts and its cleanup leaves the room.
   const [callKey, setCallKey] = useState(0);
   const [correcting, setCorrecting] = useState(false);
+  const notesRef = useRef<NotesHandle>(null);
   const [endError, setEndError] = useState<string | null>(null);
 
   // Re-checks so the doctor sees the patient arrive. Re-evaluated after each read, so it
@@ -98,6 +100,7 @@ export default function DoctorConsultationScreen() {
             <View accessibilityLiveRegion="polite"><Badge tone="success">Patient is waiting</Badge></View>
           ) : null}
         </Card>
+        <PatientDossier record={record} />
         <JoinPanel
           key={callKey}
           status={record.status}
@@ -113,7 +116,7 @@ export default function DoctorConsultationScreen() {
           <ActionButton label="End consultation" busyLabel="Ending..." variant="danger" busy={end.isPending} onPress={confirmEnd} />
         ) : null}
         {endError ? <Notice tone="error">{endError}</Notice> : null}
-        <NotesForm key={record.id} consultationId={record.id} note={record.note} lockedReason={notesLock(record)} />
+        <NotesForm ref={notesRef} key={record.id} consultationId={record.id} note={record.note} lockedReason={notesLock(record)} />
         {record.prescription && correcting ? (
           <PrescriptionBuilder
             key={record.prescription.id}
@@ -133,7 +136,11 @@ export default function DoctorConsultationScreen() {
             onCorrect={() => setCorrecting(true)}
           />
         ) : canWrite(record.status) ? (
-          <PrescriptionBuilder consultationId={record.id} onIssued={() => void q.refetch()} />
+          <PrescriptionBuilder
+            consultationId={record.id}
+            beforeIssue={() => notesRef.current?.flush() ?? Promise.resolve(true)}
+            onIssued={() => void q.refetch()}
+          />
         ) : null}
       </ScrollView>
     </KeyboardAvoidingView>

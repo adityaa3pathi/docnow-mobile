@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import {
   announceThreshold, applyVerifyHint, decide, isFinalResult, LATE_WATCH_INTERVAL_MS, LATE_WATCH_MAX_TICKS,
-  POLL_INTERVAL_MS, type Decision,
+  POLL_INTERVAL_MS, RECENT_CHECKOUT_POLL_MS, recentCheckout, type Decision,
 } from '@/lib/consult/bookingFlow';
 import { consult, errorStatus, friendlyError } from '@/lib/consult/api';
 import { acquire, checkoutKey, release } from '@/lib/consult/checkoutLock';
-import { clearActiveBooking, forgetKey, loadActiveBooking } from '@/lib/consult/store';
+import { clearActiveBooking, forgetKey, loadActiveBooking, loadCheckoutOpened, markCheckoutOpened } from '@/lib/consult/store';
 import { secondsUntil, serverNow } from '@/lib/consult/time';
 import type { BookingView, VerifyOutcome } from '@/lib/consult/types';
 import { openCheckout, type PaymentResult } from '@/lib/razorpay';
@@ -29,6 +29,7 @@ export function useBookingFlow(id: string, enabled: boolean) {
   const [payNote, setPayNote] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  const [checkoutOpenedAt, setCheckoutOpenedAt] = useState<number | null>(null);
   const alive = useRef(true);
   const lastSeconds = useRef<number | null>(null);
   const watching = useRef(false);
@@ -107,6 +108,24 @@ export function useBookingFlow(id: string, enabled: boolean) {
       watching.current = false;
     }
   }, [load]);
+
+  // Restores the last checkout time after an app kill, so Pay is not offered as a fresh start.
+  useEffect(() => {
+    let live = true;
+    void loadCheckoutOpened(id).then((at) => {
+      if (live && at !== null) setCheckoutOpenedAt((cur) => cur ?? at);
+    });
+    return () => {
+      live = false;
+    };
+  }, [id]);
+
+  const payStillLanding = decision?.kind === 'pay' && recentCheckout(checkoutOpenedAt, serverNow(now));
+  useEffect(() => {
+    if (!payStillLanding || !active) return;
+    const t = setInterval(() => void watchLoad(), RECENT_CHECKOUT_POLL_MS);
+    return () => clearInterval(t);
+  }, [payStillLanding, active, watchLoad]);
 
   const polling = decision?.kind === 'poll' && active;
   useEffect(() => {
@@ -189,6 +208,9 @@ export function useBookingFlow(id: string, enabled: boolean) {
       return;
     }
     setOpening(true);
+    const openedAt = serverNow();
+    setCheckoutOpenedAt(openedAt);
+    await markCheckoutOpened(id, openedAt);
     try {
       const outcome = await openCheckout({
         keyId: fresh.keyId,
@@ -221,5 +243,8 @@ export function useBookingFlow(id: string, enabled: boolean) {
 
   return {
     booking, loading, error, decision, secondsLeft, announcement, payNote, opening, paidHere: confirmStartedAt !== null, refetch: load, pay,
+    /** A payment opened here in the last 10 minutes may still land; ask before paying again. */
+    payStillLanding,
+    minutesSinceCheckout: checkoutOpenedAt === null ? null : Math.max(0, Math.round((serverNow(now) - checkoutOpenedAt) / 60_000)),
   };
 }
