@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AddPersonSheet } from '@/components/consult/add-person-sheet';
@@ -29,6 +29,7 @@ export default function BookScreen() {
   const [attempt, setAttempt] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const creating = useRef(false);
   const [problem, setProblem] = useState<{ message: string; myLink?: boolean } | null>(null);
 
   const backToDoctor = useCallback(
@@ -81,7 +82,9 @@ export default function BookScreen() {
   }, [userId, doctorId, slotId, backToDoctor, attempt]);
 
   async function pay() {
-    if (!slot || !personId || !userId || busy) return;
+    // State updates land a frame later, so two quick taps both saw busy=false and made two bookings.
+    if (!slot || !personId || !userId || busy || creating.current) return;
+    creating.current = true;
     setBusy(true);
     setProblem(null);
     try {
@@ -103,6 +106,7 @@ export default function BookScreen() {
       else if (action.kind === 'ended') setProblem({ message: 'That booking ended. Press Pay to start a fresh one.' });
       else setProblem({ message });
       setBusy(false);
+      creating.current = false;
     }
   }
 

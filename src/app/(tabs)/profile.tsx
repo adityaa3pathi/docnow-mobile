@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Radius } from '@/constants/theme';
@@ -7,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
+  const [leaving, setLeaving] = useState(false);
   const doctor = useDoctorMe();
   // No application yet is a loaded, empty answer. Anything else opens the Doctor area.
   const doctorLabel = doctor.isSuccess && doctor.data === null ? 'Join as a doctor' : 'Doctor area';
@@ -28,8 +30,18 @@ export default function ProfileScreen() {
         accessibilityLabel={doctorLabel}>
         <Text style={styles.rowText}>{doctorLabel}</Text>
       </Pressable>
-      <Pressable style={styles.button} onPress={signOut}>
-        <Text style={styles.buttonText}>Log out</Text>
+      {/* Logout waits for the server to end the session, which can take a while on a slow network. */}
+      <Pressable
+        style={[styles.button, leaving && styles.busy]}
+        disabled={leaving}
+        onPress={() => {
+          setLeaving(true);
+          void signOut().finally(() => setLeaving(false));
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={leaving ? 'Logging out' : 'Log out'}
+        accessibilityState={{ disabled: leaving, busy: leaving }}>
+        <Text style={styles.buttonText}>{leaving ? 'Logging out...' : 'Log out'}</Text>
       </Pressable>
     </View>
   );
@@ -43,4 +55,5 @@ const styles = StyleSheet.create({
   rowText: { color: Colors.foreground, fontWeight: '700' },
   button: { backgroundColor: Colors.primaryTint, borderRadius: Radius.xl, padding: 16, alignItems: 'center' },
   buttonText: { color: Colors.primary, fontWeight: '700' },
+  busy: { opacity: 0.6 },
 });

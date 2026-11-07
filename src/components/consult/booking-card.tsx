@@ -28,7 +28,11 @@ export function BookingCard({ booking, holdLive }: { booking: BookingView; holdL
         <Badge tone={info.tone}>{info.label}</Badge>
       </View>
       <Text style={styles.when}>{formatIstDateTime(booking.startsAt)}</Text>
-      <Text style={styles.small}>For {booking.patientName} · {formatPaise(booking.amountPaise)}</Text>
+      <Text style={styles.small}>
+        {booking.isBookedForYou
+          ? `Booked for you by ${booking.bookedBy?.name ?? 'your family member'}`
+          : `For ${booking.patientName} · ${formatPaise(booking.amountPaise)}`}
+      </Text>
       {refund ? <Text style={styles.refund}>{refund}</Text> : null}
       {holdLive ? <Text style={styles.cta}>Continue to pay</Text> : null}
     </Pressable>
