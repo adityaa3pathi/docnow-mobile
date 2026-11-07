@@ -6,10 +6,15 @@ import { Badge } from '@/components/consult/badge';
 import { PrescriptionView } from '@/components/consult/prescription-view';
 import { ActionButton, Card, Notice } from '@/components/doctor/ui';
 import { Colors, Radius } from '@/constants/theme';
+import { useServerNow } from '@/hooks/use-server-now';
 import { doctor as doctorApi, friendlyError } from '@/lib/consult/api';
 import { sharePdf } from '@/lib/consult/pdf';
+import { notAPdfMessage } from '@/lib/consult/pdfBytes';
+import { reissueWindow } from '@/lib/consult/room';
 import { formatIstDateTime } from '@/lib/consult/time';
 import type { Prescription, PrescriptionVersion } from '@/lib/consult/types';
+
+const PDF_FAILED = 'We could not download the prescription. Please try again.';
 
 function EarlierVersions({ versions }: { versions: PrescriptionVersion[] }) {
   const [open, setOpen] = useState(false);
@@ -33,15 +38,19 @@ function EarlierVersions({ versions }: { versions: PrescriptionVersion[] }) {
 
 interface Props {
   consultationId: string;
+  /** The visit's start: the server counts the 7-day correction window from it, not from when it was issued. */
+  startsAt: string;
   prescription: Prescription;
   previousVersions: PrescriptionVersion[];
   onCorrect: () => void;
 }
 
-export function IssuedPrescription({ consultationId, prescription, previousVersions, onCorrect }: Props) {
+export function IssuedPrescription({ consultationId, startsAt, prescription, previousVersions, onCorrect }: Props) {
   const pdf = useMutation({
     mutationFn: async () => sharePdf(await doctorApi.prescriptionPdf(consultationId), `docnow-prescription-${consultationId.slice(0, 8)}.pdf`),
   });
+  const now = useServerNow();
+  const correction = reissueWindow(startsAt, now);
   return (
     <Card>
       <View style={styles.head}>
@@ -50,8 +59,12 @@ export function IssuedPrescription({ consultationId, prescription, previousVersi
       </View>
       <PrescriptionView prescription={prescription} />
       <ActionButton label="Download prescription (PDF)" busyLabel="Downloading..." variant="soft" busy={pdf.isPending} onPress={() => pdf.mutate()} />
-      {pdf.error ? <Notice tone="error">{friendlyError(pdf.error, 'We could not download the prescription. Please try again.')}</Notice> : null}
-      <ActionButton label="Correct prescription" variant="soft" onPress={onCorrect} />
+      {pdf.error ? <Notice tone="error">{notAPdfMessage(pdf.error) ?? friendlyError(pdf.error, PDF_FAILED)}</Notice> : null}
+      {correction.open ? (
+        <ActionButton label="Correct prescription" variant="soft" onPress={onCorrect} />
+      ) : (
+        <Notice tone="info">{correction.reason}</Notice>
+      )}
       <EarlierVersions versions={previousVersions} />
     </Card>
   );

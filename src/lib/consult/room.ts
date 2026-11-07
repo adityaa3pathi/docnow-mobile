@@ -71,3 +71,17 @@ export function builderFromPrescription(p: Prescription): BuilderState {
 
 export const REISSUE_REASON_MIN = 5;
 export const REISSUE_REASON_MAX = 300;
+
+/** Must match REISSUE_WINDOW_MS in the server's consultations.prescription.ts, counted from the visit's start. */
+export const REISSUE_WINDOW_MS = 7 * 24 * 3_600_000;
+
+export type ReissueWindow = { open: true } | { open: false; reason: string };
+
+/** Checked before the form opens, so the doctor is not asked to retype a correction the server will refuse. */
+export function reissueWindow(startsAt: string, nowMs: number): ReissueWindow {
+    const start = Date.parse(startsAt);
+    // An unreadable date is left to the server rather than locking the doctor out on a parsing slip.
+    if (Number.isNaN(start)) return { open: true };
+    if (nowMs - start <= REISSUE_WINDOW_MS) return { open: true };
+    return { open: false, reason: 'A prescription can be corrected only within 7 days of the consultation. Please contact the DocNow team if it still needs a change.' };
+}

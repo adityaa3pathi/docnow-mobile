@@ -131,6 +131,7 @@ export default function DoctorConsultationScreen() {
         ) : record.prescription ? (
           <IssuedPrescription
             consultationId={record.id}
+            startsAt={record.startsAt}
             prescription={record.prescription}
             previousVersions={record.previousVersions}
             onCorrect={() => setCorrecting(true)}

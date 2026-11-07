@@ -1,6 +1,6 @@
 // Copied from docnowtesting/client/src/lib/consult/room.test.ts
 import { describe, expect, it } from 'vitest';
-import { buildPrescription, builderFromPrescription, emptyMedicine, joinWindow, parseTestCodes, shouldWatchForPatient } from './room';
+import { REISSUE_WINDOW_MS, buildPrescription, builderFromPrescription, emptyMedicine, joinWindow, parseTestCodes, reissueWindow, shouldWatchForPatient } from './room';
 import type { Prescription } from './types';
 
 const START = Date.parse('2026-10-13T05:00:00Z');
@@ -76,5 +76,27 @@ describe('correcting a prescription', () => {
     });
     it('starts with one blank row when there were no medicines', () => {
         expect(builderFromPrescription({ ...issued, medicines: [], advice: null })).toEqual({ rows: [emptyMedicine()], codes: 'CBC, TSH', advice: '' });
+    });
+});
+
+describe('the 7-day correction window', () => {
+    const day = 24 * 3_600_000;
+    const visit = '2026-10-13T05:00:00Z';
+
+    it('matches the server window, counted from the visit', () => {
+        expect(REISSUE_WINDOW_MS).toBe(7 * day);
+    });
+    it('stays open up to 7 days after the consultation started', () => {
+        expect(reissueWindow(visit, START)).toEqual({ open: true });
+        expect(reissueWindow(visit, START + REISSUE_WINDOW_MS)).toEqual({ open: true });
+    });
+    it('closes once past 7 days, with a reason to show the doctor', () => {
+        const closed = reissueWindow(visit, START + REISSUE_WINDOW_MS + 1);
+        expect(closed.open).toBe(false);
+        expect(closed.open === false && closed.reason).toMatch(/within 7 days/);
+        expect(reissueWindow(visit, START + 8 * day).open).toBe(false);
+    });
+    it('leaves an unreadable date to the server instead of locking the doctor out', () => {
+        expect(reissueWindow('not a date', START)).toEqual({ open: true });
     });
 });

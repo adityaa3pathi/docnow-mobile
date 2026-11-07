@@ -7,6 +7,7 @@ import { ActionButton } from '@/components/doctor/ui';
 import { Colors, Radius } from '@/constants/theme';
 import { consult, friendlyError } from '@/lib/consult/api';
 import { sharePdf } from '@/lib/consult/pdf';
+import { notAPdfMessage } from '@/lib/consult/pdfBytes';
 import { cartLines } from '@/lib/consult/roomText';
 
 const PDF_FAILED = 'We could not download the prescription. Please try again.';
@@ -28,7 +29,7 @@ export function PatientPrescription({ bookingId }: { bookingId: string }) {
       <Text style={styles.title} accessibilityRole="header">Your prescription</Text>
       <PrescriptionView prescription={p} />
       <ActionButton label="Download prescription (PDF)" busyLabel="Downloading..." variant="soft" busy={pdf.isPending} disabled={busy} onPress={() => pdf.mutate()} />
-      {pdf.error ? <Text style={styles.error} accessibilityRole="alert">{friendlyError(pdf.error, PDF_FAILED)}</Text> : null}
+      {pdf.error ? <Text style={styles.error} accessibilityRole="alert">{notAPdfMessage(pdf.error) ?? friendlyError(pdf.error, PDF_FAILED)}</Text> : null}
       {p.recommendedTests.length > 0 ? (
         <ActionButton label="Add recommended tests to cart" busyLabel="Adding..." busy={cart.isPending} disabled={busy} onPress={() => cart.mutate()} />
       ) : null}
