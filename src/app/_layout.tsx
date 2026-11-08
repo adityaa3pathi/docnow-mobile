@@ -1,4 +1,4 @@
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, useFonts } from '@expo-google-fonts/inter';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from '@expo-google-fonts/inter';
 import { registerGlobals } from '@livekit/react-native';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
 
 export default function RootLayout() {
   // The splash stays up until Inter is ready; a font that fails to load falls back to the system face.
-  const [fontsLoaded, fontError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold });
+  const [fontsLoaded, fontError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   if (!apiConfigured) return <MissingConfig />;
   if (!fontsLoaded && !fontError) return null;
   return (

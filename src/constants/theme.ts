@@ -24,6 +24,7 @@ export const Fonts = {
   regular: 'Inter_400Regular',
   medium: 'Inter_500Medium',
   semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
 } as const;
 
 /** The type scale as ready-made styles: size, line height and the matching Inter face. */
