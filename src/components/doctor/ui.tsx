@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Type } from '@/constants/theme';
 
 interface ButtonProps {
   label: string;
@@ -23,7 +23,7 @@ export function ActionButton({ label, onPress, busy, busyLabel, disabled, varian
       accessibilityRole="button"
       accessibilityLabel={text}
       accessibilityState={{ disabled: !!off, busy: !!busy }}>
-      {busy ? <ActivityIndicator color={variant === 'primary' ? Colors.primaryForeground : Colors.primary} /> : null}
+      {busy ? <ActivityIndicator color={variant === 'soft' ? Colors.ink : Colors.onPrimary} /> : null}
       <Text style={[styles.buttonText, variant === 'primary' ? styles.onPrimary : variant === 'danger' ? styles.onDanger : styles.onSoft]}>{text}</Text>
     </Pressable>
   );
@@ -42,22 +42,23 @@ export function Card({ children }: { children: ReactNode }) {
   return <View style={styles.card}>{children}</View>;
 }
 
+// DESIGN.md: controls are 44 high with radius 8, cards radius 12 with a border and no shadow.
 const styles = StyleSheet.create({
-  button: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 18, paddingVertical: 12, borderRadius: Radius.xl },
+  button: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.md },
   primary: { backgroundColor: Colors.primary },
-  soft: { backgroundColor: Colors.primaryTint },
-  danger: { backgroundColor: '#fef2f2' },
-  off: { opacity: 0.55 },
-  buttonText: { fontWeight: '700', fontSize: 15, textAlign: 'center' },
-  onPrimary: { color: Colors.primaryForeground },
-  onSoft: { color: Colors.primary },
-  onDanger: { color: Colors.destructive },
-  notice: { padding: 12, borderRadius: Radius.lg },
-  notice_info: { backgroundColor: Colors.primaryTint },
-  notice_success: { backgroundColor: '#dcfce7' },
-  notice_warning: { backgroundColor: '#fef3c7' },
-  notice_error: { backgroundColor: '#fef2f2' },
-  noticeText: { color: Colors.foreground, fontWeight: '600' },
-  noticeError: { color: Colors.destructive },
-  card: { gap: 8, padding: 16, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
+  soft: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.borderStrong },
+  danger: { backgroundColor: Colors.danger },
+  off: { opacity: 0.5 },
+  buttonText: { ...Type.bodyStrong, textAlign: 'center' },
+  onPrimary: { color: Colors.onPrimary },
+  onSoft: { color: Colors.ink },
+  onDanger: { color: Colors.onPrimary },
+  notice: { padding: 12, borderRadius: Radius.md },
+  notice_info: { backgroundColor: Colors.infoSoft },
+  notice_success: { backgroundColor: Colors.successSoft },
+  notice_warning: { backgroundColor: Colors.warningSoft },
+  notice_error: { backgroundColor: Colors.dangerSoft },
+  noticeText: { ...Type.small, color: Colors.ink },
+  noticeError: { color: Colors.dangerInk },
+  card: { gap: 8, padding: 16, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
 });
