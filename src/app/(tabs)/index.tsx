@@ -6,7 +6,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { DoctorCard } from '@/components/consult/doctor-card';
 import { SpecialtyChips } from '@/components/consult/specialty-chips';
 import { EmptyState, ErrorState, LoadingBlock } from '@/components/consult/states';
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Space, Type } from '@/constants/theme';
 import { consult, friendlyError } from '@/lib/consult/api';
 
 export default function ConsultHome() {
@@ -81,17 +81,18 @@ export default function ConsultHome() {
   );
 }
 
+// DESIGN.md: soft header band, semibold title, secondary (white) button; one purple accent on the page.
 const styles = StyleSheet.create({
-  list: { flex: 1, backgroundColor: Colors.background },
-  content: { paddingBottom: 32 },
-  header: { gap: 14, paddingTop: 16, paddingBottom: 12 },
-  titleRow: { paddingHorizontal: 16, gap: 12 },
-  titleText: { gap: 2 },
-  title: { fontSize: 22, fontWeight: '700', color: Colors.foreground },
-  muted: { color: Colors.mutedForeground },
-  myButton: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.lg, backgroundColor: Colors.primaryTint },
-  myText: { color: Colors.primary, fontWeight: '700' },
-  chips: { marginTop: 2 },
-  cardWrap: { paddingHorizontal: 16, paddingBottom: 12 },
-  link: { color: Colors.primary, fontWeight: '700' },
+  list: { flex: 1, backgroundColor: Colors.surface },
+  content: { paddingBottom: Space[8] },
+  header: { gap: Space[4], paddingTop: Space[4], paddingBottom: Space[3], backgroundColor: Colors.surfaceSubtle, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: Space[3] },
+  titleRow: { paddingHorizontal: Space[4], gap: Space[3] },
+  titleText: { gap: Space[1] },
+  title: { ...Type.title, color: Colors.ink },
+  muted: { ...Type.small, color: Colors.inkMuted },
+  myButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: Space[4], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong, backgroundColor: Colors.surface },
+  myText: { ...Type.bodyStrong, color: Colors.ink },
+  chips: { paddingBottom: Space[1] },
+  cardWrap: { paddingHorizontal: Space[4], paddingBottom: Space[3] },
+  link: { ...Type.bodyStrong, color: Colors.primary },
 });
