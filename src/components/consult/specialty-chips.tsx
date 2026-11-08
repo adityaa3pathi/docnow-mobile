@@ -34,8 +34,9 @@ export function SpecialtyChips({ specialties, value, onChange }: Props) {
 
 const styles = StyleSheet.create({
   row: { gap: Space[2], paddingHorizontal: Space[4] },
-  chip: { justifyContent: 'center', minHeight: 44, paddingHorizontal: Space[4], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong, backgroundColor: Colors.surface },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  // Same as the website: pill chips, the selected one in the soft purple (purple fill is for buttons).
+  chip: { justifyContent: 'center', minHeight: 44, paddingHorizontal: Space[4], borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  chipActive: { backgroundColor: Colors.primarySoft, borderColor: Colors.primary },
   chipText: { ...Type.bodyStrong, color: Colors.ink },
-  chipTextActive: { color: Colors.onPrimary },
+  chipTextActive: { color: Colors.primary },
 });

@@ -28,30 +28,36 @@ export function DoctorCard({ doctor }: { doctor: DoctorSummary }) {
       style={styles.card}
       onPress={() => router.push(`/consult/doctor/${doctor.id}`)}
       accessibilityRole="button"
-      accessibilityLabel={`${doctor.displayName}, ${doctor.specialty.name}, ${years}, fee ${formatRupees(doctor.consultationFee)}`}>
-      <DoctorAvatar doctor={doctor} />
+      accessibilityLabel={`${doctor.displayName}, ${doctor.specialty.name}, ${years}, fee ${formatRupees(doctor.consultationFee)} for ${doctor.slotMinutes} minutes. Book now`}>
+      <DoctorAvatar doctor={doctor} size={56} />
       <View style={styles.body}>
         <Text style={styles.name} numberOfLines={1}>{doctor.displayName}</Text>
-        <Text style={styles.specialty}>{doctor.specialty.name}</Text>
-        <Text style={styles.muted} numberOfLines={1}>{doctor.qualification}</Text>
-        {/* The quiet fact line carries experience, languages and fee instead of badges. */}
-        <Text style={styles.facts}>
+        <Text style={styles.muted} numberOfLines={1}>{doctor.specialty.name} · {doctor.qualification}</Text>
+        {/* The quiet fact line instead of badges, matching the website card. */}
+        <Text style={styles.muted}>
           {years}
           {doctor.languages.length > 0 ? ` · ${doctor.languages.join(', ')}` : ''}
-          {` · ${formatRupees(doctor.consultationFee)}`}
         </Text>
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>
+            {formatRupees(doctor.consultationFee)}
+            <Text style={styles.muted}>{` · ${doctor.slotMinutes} min consultation`}</Text>
+          </Text>
+          <Text style={styles.book}>Book now</Text>
+        </View>
       </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'center', gap: Space[4], padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  card: { flexDirection: 'row', alignItems: 'flex-start', gap: Space[4], padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   avatar: { backgroundColor: Colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   initials: { fontFamily: Fonts.semibold, color: Colors.primary },
   body: { flex: 1, gap: Space[1] },
   name: { ...Type.bodyStrong, color: Colors.ink },
-  specialty: { ...Type.small, color: Colors.ink },
   muted: { ...Type.small, color: Colors.inkMuted },
-  facts: { ...Type.small, color: Colors.inkMuted, fontVariant: ['tabular-nums'] },
+  priceRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: Space[3], paddingTop: Space[2] },
+  price: { ...Type.bodyLg, fontFamily: Fonts.semibold, color: Colors.ink, fontVariant: ['tabular-nums'], flexShrink: 1 },
+  book: { ...Type.bodyStrong, color: Colors.primary },
 });
