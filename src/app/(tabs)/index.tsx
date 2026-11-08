@@ -6,7 +6,8 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { DoctorCard } from '@/components/consult/doctor-card';
 import { SpecialtyChips } from '@/components/consult/specialty-chips';
 import { EmptyState, ErrorState, LoadingBlock } from '@/components/consult/states';
-import { Colors, Radius, Space, Type } from '@/constants/theme';
+import { LightStatusBar } from '@/components/ui/light-status-bar';
+import { Colors, Fonts, Radius, Space, Type } from '@/constants/theme';
 import { consult, friendlyError } from '@/lib/consult/api';
 
 export default function ConsultHome() {
@@ -23,25 +24,33 @@ export default function ConsultHome() {
   };
 
   const header = (
-    <View style={styles.header}>
-      <View style={styles.titleRow}>
-        <View style={styles.titleText}>
-          <Text style={styles.title} accessibilityRole="header">Talk to a doctor</Text>
-          <Text style={styles.muted}>Pick a doctor, choose a time and pay to book.</Text>
-        </View>
+    <View>
+      <LightStatusBar />
+      <View style={styles.band}>
+        <Text style={styles.bandTitle} accessibilityRole="header">Talk to a doctor from home</Text>
+        <Text style={styles.bandBody}>Registered doctors on video. Book a time that suits you and get your prescription on your phone.</Text>
         <Pressable
-          style={styles.myButton}
+          style={({ pressed }) => [styles.myButton, pressed && styles.myButtonPressed]}
           onPress={() => router.push('/consult/my')}
           accessibilityRole="button"
           accessibilityLabel="My consultations">
           <Text style={styles.myText}>My consultations</Text>
         </Pressable>
-      </View>
-      {specialties.data && specialties.data.length > 0 ? (
-        <View style={styles.chips}>
-          <SpecialtyChips specialties={specialties.data} value={specialtyId} onChange={setSpecialtyId} />
+        <View style={styles.trust}>
+          {['Verified registration', 'Digital prescription', 'Private and confidential'].map((t) => (
+            <View key={t} style={styles.trustItem}>
+              <View style={styles.dot} />
+              <Text style={styles.trustText}>{t}</Text>
+            </View>
+          ))}
         </View>
-      ) : null}
+      </View>
+      <View style={styles.listHead}>
+        <Text style={styles.h2} accessibilityRole="header">Choose a doctor</Text>
+        {specialties.data && specialties.data.length > 0 ? (
+          <SpecialtyChips specialties={specialties.data} value={specialtyId} onChange={setSpecialtyId} />
+        ) : null}
+      </View>
     </View>
   );
 
@@ -81,18 +90,22 @@ export default function ConsultHome() {
   );
 }
 
-// DESIGN.md: soft header band, semibold title, secondary (white) button; one purple accent on the page.
+// Deep purple band (owner choice 08-11-2026), then white list; buttons on the band are white outline.
 const styles = StyleSheet.create({
-  list: { flex: 1, backgroundColor: Colors.surface },
+  list: { flex: 1, backgroundColor: Colors.surfaceSubtle },
   content: { paddingBottom: Space[8] },
-  header: { gap: Space[4], paddingTop: Space[4], paddingBottom: Space[3], backgroundColor: Colors.surfaceSubtle, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: Space[3] },
-  titleRow: { paddingHorizontal: Space[4], gap: Space[3] },
-  titleText: { gap: Space[1] },
-  title: { ...Type.title, color: Colors.ink },
-  muted: { ...Type.small, color: Colors.inkMuted },
-  myButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: Space[4], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong, backgroundColor: Colors.surface },
-  myText: { ...Type.bodyStrong, color: Colors.ink },
-  chips: { paddingBottom: Space[1] },
-  cardWrap: { paddingHorizontal: Space[4], paddingBottom: Space[3] },
+  band: { gap: Space[4], paddingHorizontal: Space[4], paddingTop: Space[2], paddingBottom: Space[6], backgroundColor: Colors.primaryHover },
+  bandTitle: { ...Type.titleLg, fontFamily: Fonts.bold, color: Colors.onPrimary },
+  bandBody: { ...Type.body, color: Colors.primarySoft },
+  myButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: Space[4], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.primarySoft },
+  myButtonPressed: { backgroundColor: Colors.primary },
+  myText: { ...Type.bodyStrong, color: Colors.onPrimary },
+  trust: { gap: Space[2] },
+  trustItem: { flexDirection: 'row', alignItems: 'center', gap: Space[2] },
+  dot: { width: 6, height: 6, borderRadius: Radius.full, backgroundColor: Colors.primarySoft },
+  trustText: { ...Type.small, color: Colors.primarySoft },
+  listHead: { gap: Space[3], paddingTop: Space[6], paddingBottom: Space[4] },
+  h2: { ...Type.titleSm, fontFamily: Fonts.bold, color: Colors.ink, paddingHorizontal: Space[4] },
+  cardWrap: { paddingHorizontal: Space[4], paddingBottom: Space[4] },
   link: { ...Type.bodyStrong, color: Colors.primary },
 });

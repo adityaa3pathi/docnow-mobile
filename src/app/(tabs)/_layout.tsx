@@ -13,7 +13,11 @@ export default function TabsLayout() {
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.mutedForeground,
       }}>
-      <Tabs.Screen name="index" options={{ title: 'Consult' }} />
+      {/* The consult header joins the screen's purple band. */}
+      <Tabs.Screen
+        name="index"
+        options={{ title: 'Consult', headerStyle: { backgroundColor: Colors.primaryHover }, headerTitleStyle: { color: Colors.onPrimary, fontWeight: '700' }, headerShadowVisible: false }}
+      />
       <Tabs.Screen name="tests" options={{ title: 'Lab Tests' }} />
       <Tabs.Screen name="health" options={{ title: 'My Health' }} />
       <Tabs.Screen name="practice" options={{ title: 'Doctor', href: approved ? undefined : null }} />
