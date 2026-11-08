@@ -8,7 +8,7 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, PermissionsAndroid, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { addTaskRemovedListener, startCallService, stopCallService } from '../../../modules/call-service';
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Type } from '@/constants/theme';
 import { callEvents, type CallEventName } from '@/lib/consult/api';
 import { arrangeTiles, formatDuration, partyOfRole, videoFit } from '@/lib/consult/callLayout';
 import { callStage, isAudioRole } from '@/lib/consult/roomText';
@@ -40,11 +40,12 @@ const NOTICES: Record<NoticeKind, string> = {
   flip: 'We could not switch the camera.',
 };
 
-const QUALITY: Partial<Record<ConnectionQuality, { text: string; color: string }>> = {
-  [ConnectionQuality.Excellent]: { text: 'Strong', color: '#4ade80' },
-  [ConnectionQuality.Good]: { text: 'Good', color: '#fde047' },
-  [ConnectionQuality.Poor]: { text: 'Weak', color: '#f87171' },
-  [ConnectionQuality.Lost]: { text: 'Lost', color: '#f87171' },
+// A soft badge instead of a bright dot on black: the same meaning pairs as the rest of the app.
+const QUALITY: Partial<Record<ConnectionQuality, { text: string; bg: string; fg: string }>> = {
+  [ConnectionQuality.Excellent]: { text: 'Strong', bg: Colors.successSoft, fg: Colors.successInk },
+  [ConnectionQuality.Good]: { text: 'Good', bg: Colors.warningSoft, fg: Colors.warningInk },
+  [ConnectionQuality.Poor]: { text: 'Weak', bg: Colors.dangerSoft, fg: Colors.dangerInk },
+  [ConnectionQuality.Lost]: { text: 'Lost', bg: Colors.dangerSoft, fg: Colors.dangerInk },
 };
 
 // Every event that changes what the screen shows; each one just triggers a re-render.
@@ -285,7 +286,7 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
       <View style={[styles.stage, { height: stageHeight }]}>
         {stage === 'connecting' ? (
           <View style={styles.center} accessibilityRole="progressbar" accessibilityLabel="Connecting">
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={Colors.onPrimary} />
             <Text style={styles.stageText}>Connecting...</Text>
           </View>
         ) : stage === 'waiting' ? (
@@ -326,8 +327,8 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
             {live && seconds > 0 ? <Text style={styles.pill}>{formatDuration(seconds)}</Text> : <View />}
             {reconnecting ? <Text style={styles.reconnecting} accessibilityLiveRegion="polite">Reconnecting...</Text> : null}
             {quality ? (
-              <Text style={styles.pill} accessibilityLabel={`Connection: ${quality.text}`}>
-                <Text style={{ color: quality.color }}>● </Text>{quality.text}
+              <Text style={[styles.pill, { backgroundColor: quality.bg, color: quality.fg }]} accessibilityLabel={`Connection: ${quality.text}`}>
+                <Text style={{ color: quality.fg }}>● </Text>{quality.text}
               </Text>
             ) : <View />}
           </View>
@@ -353,32 +354,32 @@ export function CallRoom({ url, token, role, otherParty, onLeave, onRetry }: Pro
 
 const styles = StyleSheet.create({
   wrap: { gap: 12 },
-  stage: { width: '100%', borderRadius: Radius.xl, overflow: 'hidden', backgroundColor: '#111827' },
+  stage: { width: '100%', borderRadius: Radius.xl, overflow: 'hidden', backgroundColor: Colors.ink },
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  stageText: { color: '#fff', fontWeight: '600', textAlign: 'center' },
+  stageText: { ...Type.bodyStrong, color: Colors.onPrimary, textAlign: 'center' },
   initialWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   initial: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
   initialSmall: { width: 36, height: 36, borderRadius: 18 },
-  initialText: { color: '#fff', fontSize: 28, fontWeight: '700' },
-  initialTextSmall: { fontSize: 16 },
-  tag: { position: 'absolute', left: 10, bottom: 10, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 12, fontWeight: '600' },
+  initialText: { ...Type.titleLg, color: Colors.onPrimary },
+  initialTextSmall: { ...Type.body },
+  tag: { ...Type.caption, position: 'absolute', left: 10, bottom: 10, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: 'rgba(31,26,43,0.75)', color: Colors.onPrimary },
   others: { position: 'absolute', left: 10, top: 44, gap: 8 },
-  otherTile: { width: 84, aspectRatio: 3 / 4, borderRadius: Radius.lg, overflow: 'hidden', borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)', backgroundColor: '#1f2937' },
-  preview: { position: 'absolute', right: 10, bottom: 10, width: '30%', aspectRatio: 3 / 4, borderRadius: Radius.lg, overflow: 'hidden', borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)', backgroundColor: '#1f2937' },
+  otherTile: { width: 84, aspectRatio: 3 / 4, borderRadius: Radius.lg, overflow: 'hidden', borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)', backgroundColor: Colors.ink },
+  preview: { position: 'absolute', right: 10, bottom: 10, width: '30%', aspectRatio: 3 / 4, borderRadius: Radius.lg, overflow: 'hidden', borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)', backgroundColor: Colors.ink },
   topBar: { position: 'absolute', top: 10, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  reconnecting: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: '#fef3c7', color: '#92400e', fontSize: 12, fontWeight: '700' },
-  notice: { gap: 8, padding: 12, borderRadius: Radius.lg, backgroundColor: '#fef3c7', alignItems: 'flex-start' },
-  noticeText: { color: '#92400e', fontWeight: '600' },
+  pill: { ...Type.caption, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: 'rgba(31,26,43,0.75)', color: Colors.onPrimary, fontVariant: ['tabular-nums'] },
+  reconnecting: { ...Type.caption, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: Colors.warningSoft, color: Colors.warningInk },
+  notice: { gap: 8, padding: 12, borderRadius: Radius.lg, backgroundColor: Colors.warningSoft, alignItems: 'flex-start' },
+  noticeText: { ...Type.small, color: Colors.warningInk },
   controls: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
-  control: { minHeight: 44, paddingHorizontal: 16, justifyContent: 'center', borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.primary, backgroundColor: Colors.background },
-  controlOff: { borderColor: '#b91c1c', backgroundColor: '#fee2e2' },
-  controlDanger: { borderColor: Colors.destructive, backgroundColor: Colors.destructive },
-  controlText: { color: Colors.primary, fontWeight: '700' },
-  controlTextOff: { color: '#b91c1c' },
-  controlTextDanger: { color: Colors.primaryForeground },
+  control: { minHeight: 44, paddingHorizontal: 16, justifyContent: 'center', borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.borderStrong, backgroundColor: Colors.surface },
+  controlOff: { borderColor: Colors.danger, backgroundColor: Colors.dangerSoft },
+  controlDanger: { borderColor: Colors.danger, backgroundColor: Colors.danger },
+  controlText: { ...Type.bodyStrong, color: Colors.ink },
+  controlTextOff: { color: Colors.dangerInk },
+  controlTextDanger: { color: Colors.onPrimary },
   off: { opacity: 0.5 },
-  error: { alignItems: 'center', gap: 12, padding: 24, borderRadius: Radius.xl, backgroundColor: '#fef2f2' },
-  errorText: { color: Colors.destructive, fontWeight: '600', textAlign: 'center' },
+  error: { alignItems: 'center', gap: 12, padding: 24, borderRadius: Radius.xl, backgroundColor: Colors.dangerSoft },
+  errorText: { ...Type.body, color: Colors.dangerInk, textAlign: 'center' },
 });

@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Space, Type } from '@/constants/theme';
 import type { Specialty } from '@/lib/consult/types';
 
 interface Props {
@@ -33,9 +33,9 @@ export function SpecialtyChips({ specialties, value, onChange }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { gap: 8, paddingHorizontal: 16 },
-  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
+  row: { gap: Space[2], paddingHorizontal: Space[4] },
+  chip: { justifyContent: 'center', minHeight: 44, paddingHorizontal: Space[4], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong, backgroundColor: Colors.surface },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontWeight: '600', color: Colors.foreground },
-  chipTextActive: { color: Colors.primaryForeground },
+  chipText: { ...Type.bodyStrong, color: Colors.ink },
+  chipTextActive: { color: Colors.onPrimary },
 });

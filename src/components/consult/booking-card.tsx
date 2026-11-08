@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/consult/badge';
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Space, Type } from '@/constants/theme';
 import { formatPaise } from '@/lib/consult/format';
 import { statusInfo } from '@/lib/consult/status';
 import { formatIstDateTime } from '@/lib/consult/time';
@@ -40,13 +40,13 @@ export function BookingCard({ booking, holdLive }: { booking: BookingView; holdL
 }
 
 const styles = StyleSheet.create({
-  card: { gap: 4, padding: 14, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
-  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
+  card: { gap: Space[1], padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: Space[2] },
   topText: { flex: 1 },
-  name: { fontWeight: '700', fontSize: 16, color: Colors.foreground },
-  muted: { color: Colors.mutedForeground },
-  when: { marginTop: 4, fontWeight: '600', color: Colors.foreground },
-  small: { fontSize: 12, color: Colors.mutedForeground },
-  refund: { fontSize: 12, fontWeight: '600', color: Colors.primary },
-  cta: { marginTop: 6, fontWeight: '700', color: Colors.primary },
+  name: { ...Type.bodyStrong, color: Colors.ink },
+  muted: { ...Type.small, color: Colors.inkMuted },
+  when: { ...Type.body, marginTop: Space[1], color: Colors.ink, fontVariant: ['tabular-nums'] },
+  small: { ...Type.small, color: Colors.inkMuted, fontVariant: ['tabular-nums'] },
+  refund: { ...Type.small, color: Colors.inkMuted },
+  cta: { ...Type.bodyStrong, marginTop: Space[1], color: Colors.primary },
 });

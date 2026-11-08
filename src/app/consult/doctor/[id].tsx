@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DoctorAvatar } from '@/components/consult/doctor-card';
 import { SlotPicker } from '@/components/consult/slot-picker';
 import { EmptyState, ErrorState, LoadingBlock } from '@/components/consult/states';
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Shadow, Space, Type } from '@/constants/theme';
 import { consult, errorStatus, friendlyError } from '@/lib/consult/api';
 import { formatRupees } from '@/lib/consult/format';
 import { formatIstDateTime, serverNow } from '@/lib/consult/time';
@@ -93,9 +93,9 @@ export default function DoctorScreen() {
       </ScrollView>
 
       {selected ? (
-        <View style={[styles.bar, { paddingBottom: 12 + insets.bottom }]}>
+        <View style={[styles.bar, { paddingBottom: Space[3] + insets.bottom }]}>
           <View style={styles.barText}>
-            <Text style={styles.tiny}>Your time</Text>
+            <Text style={styles.label}>Your time</Text>
             <Text style={styles.when} numberOfLines={1}>{formatIstDateTime(selected.startsAt)}</Text>
           </View>
           <Pressable style={styles.button} onPress={goBook} accessibilityRole="button" accessibilityLabel={`Continue to book ${formatIstDateTime(selected.startsAt)}`}>
@@ -110,34 +110,35 @@ export default function DoctorScreen() {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.fact} accessible accessibilityLabel={`${label}: ${value}`}>
-      <Text style={styles.tiny}>{label}</Text>
+      <Text style={styles.label}>{label}</Text>
       <Text style={styles.factValue}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.background },
-  pad: { padding: 16 },
-  content: { padding: 16, gap: 16 },
-  notice: { padding: 14, borderRadius: Radius.lg, backgroundColor: '#fef3c7', color: '#92400e', fontWeight: '600' },
-  warn: { color: '#92400e', fontWeight: '600' },
-  card: { gap: 14, padding: 16, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted },
-  top: { flexDirection: 'row', gap: 14 },
-  topText: { flex: 1, gap: 2 },
-  name: { fontSize: 20, fontWeight: '700', color: Colors.foreground },
-  specialty: { fontWeight: '600', color: Colors.primary },
-  muted: { color: Colors.mutedForeground },
-  facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
-  fact: { minWidth: '45%' },
-  factValue: { fontWeight: '600', color: Colors.foreground },
-  tiny: { fontSize: 12, color: Colors.mutedForeground },
-  bio: { color: Colors.foreground },
-  small: { fontSize: 12, color: Colors.mutedForeground },
-  h2: { fontSize: 18, fontWeight: '700', color: Colors.foreground },
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.muted, backgroundColor: Colors.background },
+  flex: { flex: 1, backgroundColor: Colors.surface },
+  pad: { padding: Space[4] },
+  content: { padding: Space[4], gap: Space[6] },
+  notice: { ...Type.small, padding: Space[3], borderRadius: Radius.md, backgroundColor: Colors.warningSoft, color: Colors.warningInk },
+  warn: { ...Type.small, color: Colors.warningInk },
+  card: { gap: Space[4], padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  top: { flexDirection: 'row', gap: Space[4] },
+  topText: { flex: 1, gap: Space[1] },
+  name: { ...Type.titleSm, color: Colors.ink },
+  specialty: { ...Type.body, color: Colors.ink },
+  muted: { ...Type.small, color: Colors.inkMuted },
+  facts: { gap: Space[3], paddingTop: Space[3], borderTopWidth: 1, borderTopColor: Colors.border },
+  fact: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: Space[4] },
+  // Tabular figures keep the fee and the years lined up down the right edge.
+  factValue: { ...Type.bodyStrong, flexShrink: 1, textAlign: 'right', color: Colors.ink, fontVariant: ['tabular-nums'] },
+  label: { ...Type.small, color: Colors.inkMuted },
+  bio: { ...Type.body, color: Colors.ink },
+  small: { ...Type.small, color: Colors.inkSubtle },
+  h2: { ...Type.titleSm, color: Colors.ink },
+  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space[3], paddingHorizontal: Space[4], paddingTop: Space[3], borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface, ...Shadow.raised },
   barText: { flex: 1 },
-  when: { fontWeight: '700', color: Colors.foreground },
-  button: { paddingHorizontal: 24, paddingVertical: 14, borderRadius: Radius.xl, backgroundColor: Colors.primary },
-  buttonText: { color: Colors.primaryForeground, fontWeight: '700' },
+  when: { ...Type.bodyStrong, color: Colors.ink, fontVariant: ['tabular-nums'] },
+  button: { justifyContent: 'center', minHeight: 44, paddingHorizontal: Space[6], borderRadius: Radius.md, backgroundColor: Colors.primary },
+  buttonText: { ...Type.bodyStrong, color: Colors.onPrimary },
 });

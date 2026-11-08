@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Space, Type } from '@/constants/theme';
 import { formatIstTime, groupSlotsByDay } from '@/lib/consult/time';
 import type { Slot } from '@/lib/consult/types';
 
@@ -59,15 +59,16 @@ export function SlotPicker({ slots, selectedId, onSelect }: Props) {
   );
 }
 
+// Controls are 44 high with radius 8; the purple fill marks the chosen day and time.
 const styles = StyleSheet.create({
-  wrap: { gap: 12 },
-  days: { gap: 8 },
-  day: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
-  dayText: { fontWeight: '600', color: Colors.foreground },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  slot: { minWidth: 92, alignItems: 'center', paddingHorizontal: 10, paddingVertical: 12, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
-  slotText: { fontWeight: '600', color: Colors.foreground },
+  wrap: { gap: Space[3] },
+  days: { gap: Space[2] },
+  day: { justifyContent: 'center', minHeight: 44, paddingHorizontal: Space[4], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong, backgroundColor: Colors.surface },
+  dayText: { ...Type.bodyStrong, color: Colors.ink },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Space[2] },
+  slot: { minWidth: 92, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Space[3], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong, backgroundColor: Colors.surface },
+  slotText: { ...Type.bodyStrong, color: Colors.ink, fontVariant: ['tabular-nums'] },
   on: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  onText: { color: Colors.primaryForeground },
-  note: { fontSize: 12, color: Colors.mutedForeground },
+  onText: { color: Colors.onPrimary },
+  note: { ...Type.small, color: Colors.inkMuted },
 });

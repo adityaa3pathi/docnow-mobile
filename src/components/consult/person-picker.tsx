@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Space, Type } from '@/constants/theme';
 import type { Person } from '@/lib/consult/api';
 
 interface Props {
@@ -38,24 +38,25 @@ export function PersonPicker({ people, value, onChange, onAdd }: Props) {
           );
         })}
       </View>
-      <Pressable onPress={onAdd} accessibilityRole="button" accessibilityLabel="Add a person">
-        <Text style={styles.add}>+ Add a person</Text>
+      <Pressable style={styles.addRow} onPress={onAdd} accessibilityRole="button" accessibilityLabel="Add a person">
+        <Text style={styles.add}>Add a person</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 10 },
-  legend: { fontWeight: '700', color: Colors.foreground },
-  muted: { color: Colors.mutedForeground },
-  list: { gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.muted },
-  rowOn: { borderColor: Colors.primary, backgroundColor: Colors.primaryTint },
-  dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: Colors.mutedForeground },
+  wrap: { gap: Space[3] },
+  legend: { ...Type.bodyStrong, color: Colors.ink },
+  muted: { ...Type.small, color: Colors.inkMuted },
+  list: { gap: Space[2] },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Space[3], minHeight: 56, paddingHorizontal: Space[3], paddingVertical: Space[2], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong },
+  rowOn: { borderColor: Colors.primary, backgroundColor: Colors.primarySoft },
+  dot: { width: 20, height: 20, borderRadius: Radius.full, borderWidth: 2, borderColor: Colors.borderStrong },
   dotOn: { borderColor: Colors.primary, backgroundColor: Colors.primary },
   rowText: { flex: 1 },
-  name: { fontWeight: '600', color: Colors.foreground },
-  small: { fontSize: 12, color: Colors.mutedForeground },
-  add: { color: Colors.primary, fontWeight: '700' },
+  name: { ...Type.bodyStrong, color: Colors.ink },
+  small: { ...Type.small, color: Colors.inkMuted },
+  addRow: { minHeight: 44, justifyContent: 'center' },
+  add: { ...Type.bodyStrong, color: Colors.primary },
 });

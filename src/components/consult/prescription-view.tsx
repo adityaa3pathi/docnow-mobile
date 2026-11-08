@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Space, Type } from '@/constants/theme';
 import { formatIstDateTime } from '@/lib/consult/time';
 import type { Prescription } from '@/lib/consult/types';
 
@@ -40,12 +40,12 @@ export function PrescriptionView({ prescription }: { prescription: Prescription 
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 14 },
-  section: { gap: 6 },
-  small: { fontSize: 12, color: Colors.mutedForeground },
-  heading: { fontWeight: '700', color: Colors.foreground },
-  medicine: { gap: 2, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.lg, backgroundColor: Colors.primaryTint },
-  medName: { fontWeight: '600', color: Colors.foreground },
-  muted: { color: Colors.mutedForeground },
-  body: { color: Colors.foreground },
+  wrap: { gap: Space[4] },
+  section: { gap: Space[1] },
+  small: { ...Type.small, color: Colors.inkMuted },
+  heading: { ...Type.bodyStrong, color: Colors.ink },
+  medicine: { gap: Space[1], paddingHorizontal: Space[3], paddingVertical: Space[2], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surfaceSubtle },
+  medName: { ...Type.bodyStrong, color: Colors.ink },
+  muted: { ...Type.small, color: Colors.inkMuted },
+  body: { ...Type.body, color: Colors.ink },
 });

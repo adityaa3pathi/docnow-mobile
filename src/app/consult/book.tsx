@@ -1,12 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AddPersonSheet } from '@/components/consult/add-person-sheet';
 import { BookingSummary } from '@/components/consult/booking-summary';
 import { PersonPicker } from '@/components/consult/person-picker';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
-import { Colors, Radius } from '@/constants/theme';
+import { ActionButton } from '@/components/doctor/ui';
+import { Colors, Radius, Space, Type } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
 import { consult, errorStatus, errorText, friendlyError, people as peopleApi, type Person } from '@/lib/consult/api';
 import { mapCreateError } from '@/lib/consult/bookingFlow';
@@ -133,22 +134,20 @@ export default function BookScreen() {
         <View style={styles.problem} accessibilityRole="alert">
           <Text style={styles.problemText}>{problem.message}</Text>
           {problem.myLink ? (
-            <Pressable onPress={() => router.push('/consult/my')} accessibilityRole="link" accessibilityLabel="Go to My consultations">
+            <Pressable style={styles.problemLinkRow} onPress={() => router.push('/consult/my')} accessibilityRole="link" accessibilityLabel="Go to My consultations">
               <Text style={styles.problemLink}>Go to My consultations</Text>
             </Pressable>
           ) : null}
         </View>
       ) : null}
 
-      <Pressable
-        style={[styles.button, (!personId || busy) && styles.disabled]}
-        disabled={!personId || busy}
+      <ActionButton
+        label={`Pay ${fee}`}
+        busyLabel="Getting your payment ready"
+        busy={busy}
+        disabled={!personId}
         onPress={pay}
-        accessibilityRole="button"
-        accessibilityLabel={busy ? 'Getting your payment ready' : `Pay ${fee}`}
-        accessibilityState={{ disabled: !personId || busy, busy }}>
-        {busy ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.buttonText}>Pay {fee}</Text>}
-      </Pressable>
+      />
       <Text style={styles.note}>Your time is held for a few minutes while you pay.</Text>
 
       <AddPersonSheet
@@ -164,16 +163,14 @@ export default function BookScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.background },
-  pad: { padding: 16 },
-  content: { padding: 16, gap: 16 },
-  h1: { fontSize: 22, fontWeight: '700', color: Colors.foreground },
-  card: { padding: 16, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted },
-  problem: { gap: 6, padding: 14, borderRadius: Radius.lg, backgroundColor: '#fef2f2' },
-  problemText: { color: Colors.destructive, fontWeight: '600' },
-  problemLink: { color: Colors.destructive, fontWeight: '700', textDecorationLine: 'underline' },
-  button: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.primary },
-  buttonText: { color: Colors.primaryForeground, fontWeight: '700', fontSize: 16 },
-  disabled: { opacity: 0.5 },
-  note: { textAlign: 'center', fontSize: 12, color: Colors.mutedForeground },
+  flex: { flex: 1, backgroundColor: Colors.surface },
+  pad: { padding: Space[4] },
+  content: { padding: Space[4], gap: Space[4] },
+  h1: { ...Type.title, color: Colors.ink },
+  card: { padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  problem: { gap: Space[1], padding: Space[3], borderRadius: Radius.md, backgroundColor: Colors.dangerSoft },
+  problemText: { ...Type.small, color: Colors.dangerInk },
+  problemLinkRow: { minHeight: 44, justifyContent: 'center' },
+  problemLink: { ...Type.bodyStrong, color: Colors.dangerInk, textDecorationLine: 'underline' },
+  note: { ...Type.small, textAlign: 'center', color: Colors.inkMuted },
 });

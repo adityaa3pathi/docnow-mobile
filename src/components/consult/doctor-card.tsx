@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Fonts, Radius, Space, Type } from '@/constants/theme';
 import { formatRupees } from '@/lib/consult/format';
 import type { DoctorSummary } from '@/lib/consult/types';
 
@@ -11,7 +11,8 @@ export function initials(name: string) {
 }
 
 export function DoctorAvatar({ doctor, size = 64 }: { doctor: Pick<DoctorSummary, 'displayName' | 'photoUrl'>; size?: number }) {
-  const box = { width: size, height: size, borderRadius: Radius.xl };
+  // A round frame reads as a person, whether it holds a real photo or initials.
+  const box = { width: size, height: size, borderRadius: Radius.full };
   if (doctor.photoUrl) return <Image source={{ uri: doctor.photoUrl }} style={box} accessibilityElementsHidden />;
   return (
     <View style={[styles.avatar, box]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -33,24 +34,24 @@ export function DoctorCard({ doctor }: { doctor: DoctorSummary }) {
         <Text style={styles.name} numberOfLines={1}>{doctor.displayName}</Text>
         <Text style={styles.specialty}>{doctor.specialty.name}</Text>
         <Text style={styles.muted} numberOfLines={1}>{doctor.qualification}</Text>
-        <Text style={styles.small}>
+        {/* The quiet fact line carries experience, languages and fee instead of badges. */}
+        <Text style={styles.facts}>
           {years}
           {doctor.languages.length > 0 ? ` · ${doctor.languages.join(', ')}` : ''}
+          {` · ${formatRupees(doctor.consultationFee)}`}
         </Text>
-        <Text style={styles.fee}>{formatRupees(doctor.consultationFee)}</Text>
       </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: 'row', gap: 14, padding: 14, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
-  avatar: { backgroundColor: Colors.primaryTint, alignItems: 'center', justifyContent: 'center' },
-  initials: { fontWeight: '700', color: Colors.primary },
-  body: { flex: 1, gap: 2 },
-  name: { fontWeight: '700', fontSize: 16, color: Colors.foreground },
-  specialty: { fontWeight: '600', color: Colors.primary },
-  muted: { color: Colors.mutedForeground },
-  small: { fontSize: 12, color: Colors.mutedForeground },
-  fee: { marginTop: 4, fontWeight: '700', color: Colors.foreground },
+  card: { flexDirection: 'row', alignItems: 'center', gap: Space[4], padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  avatar: { backgroundColor: Colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  initials: { fontFamily: Fonts.semibold, color: Colors.primary },
+  body: { flex: 1, gap: Space[1] },
+  name: { ...Type.bodyStrong, color: Colors.ink },
+  specialty: { ...Type.small, color: Colors.ink },
+  muted: { ...Type.small, color: Colors.inkMuted },
+  facts: { ...Type.small, color: Colors.inkMuted, fontVariant: ['tabular-nums'] },
 });

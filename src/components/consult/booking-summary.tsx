@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Fonts, Radius, Space, Type } from '@/constants/theme';
 import { formatIstDateTime, formatIstTime } from '@/lib/consult/time';
 
 interface Props {
@@ -43,11 +43,11 @@ export function BookingSummary({ doctorName, specialty, startsAt, endsAt, amount
 }
 
 const styles = StyleSheet.create({
-  card: { gap: 12, padding: 16, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
-  label: { fontSize: 12, color: Colors.mutedForeground },
-  strong: { fontWeight: '700', color: Colors.foreground },
-  semi: { fontWeight: '600', color: Colors.foreground },
-  muted: { color: Colors.mutedForeground },
-  total: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.muted },
-  amount: { fontSize: 18, fontWeight: '800', color: Colors.foreground },
+  card: { gap: Space[3], padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  label: { ...Type.small, color: Colors.inkMuted },
+  strong: { ...Type.bodyStrong, color: Colors.ink },
+  semi: { ...Type.body, color: Colors.ink, fontVariant: ['tabular-nums'] },
+  muted: { ...Type.small, color: Colors.inkMuted },
+  total: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Space[4], paddingTop: Space[3], borderTopWidth: 1, borderTopColor: Colors.border },
+  amount: { ...Type.bodyLg, fontFamily: Fonts.medium, flexShrink: 1, textAlign: 'right', color: Colors.ink, fontVariant: ['tabular-nums'] },
 });

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BookingSummary } from '@/components/consult/booking-summary';
 import { CancelSheet } from '@/components/consult/cancel-sheet';
@@ -9,7 +9,8 @@ import { JoinPanel } from '@/components/consult/join-panel';
 import { PatientPrescription } from '@/components/consult/patient-prescription';
 import { CheckingNotice, ConfirmingNotice, PaymentStatus } from '@/components/consult/payment-status';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
-import { Colors, Radius } from '@/constants/theme';
+import { ActionButton } from '@/components/doctor/ui';
+import { Colors, Radius, Space, Type } from '@/constants/theme';
 import { loadActiveBooking } from '@/lib/consult/store';
 import { useBookingFlow } from '@/hooks/use-booking-flow';
 import { consult } from '@/lib/consult/api';
@@ -126,15 +127,12 @@ export default function BookingScreen() {
               {`You opened a payment ${flow.minutesSinceCheckout ? `${flow.minutesSinceCheckout} min` : 'moments'} ago. If you paid in your UPI app, we are checking and this updates by itself. Please wait before paying again.`}
             </Text>
           ) : null}
-          <Pressable
-            style={[styles.button, flow.opening && styles.disabled]}
-            disabled={flow.opening}
+          <ActionButton
+            label={`Pay ${formatPaise(booking.amountPaise)}`}
+            busyLabel="Opening payment"
+            busy={flow.opening}
             onPress={onPayPress}
-            accessibilityRole="button"
-            accessibilityLabel={flow.opening ? 'Opening payment' : `Pay ${formatPaise(booking.amountPaise)}`}
-            accessibilityState={{ disabled: flow.opening, busy: flow.opening }}>
-            {flow.opening ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.buttonText}>Pay {formatPaise(booking.amountPaise)}</Text>}
-          </Pressable>
+          />
         </>
       )}
       {decision.kind === 'poll' && (
@@ -171,20 +169,18 @@ export default function BookingScreen() {
             <View style={styles.waitingRx}>
               <Text style={styles.waitingRxText}>Your prescription will show here once the doctor issues it.</Text>
               <Pressable onPress={() => void flow.refetch()} accessibilityRole="button" accessibilityLabel="Check again" style={styles.checkAgain}>
-                <Text style={styles.outlineText}>Check again</Text>
+                <Text style={styles.linkText}>Check again</Text>
               </Pressable>
             </View>
           ) : null}
         </>
       )}
       {canCancel && (
-        <Pressable
-          style={styles.outline}
+        <ActionButton
+          label={booking.status === 'PENDING_PAYMENT' ? 'Cancel this booking' : 'Cancel consultation'}
+          variant="soft"
           onPress={() => setCancelOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel={booking.status === 'PENDING_PAYMENT' ? 'Cancel this booking' : 'Cancel consultation'}>
-          <Text style={styles.outlineText}>{booking.status === 'PENDING_PAYMENT' ? 'Cancel this booking' : 'Cancel consultation'}</Text>
-        </Pressable>
+        />
       )}
       <CancelSheet
         visible={cancelOpen}
@@ -201,22 +197,21 @@ export default function BookingScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.background },
-  pad: { padding: 16 },
-  content: { padding: 16, gap: 16 },
-  h1: { fontSize: 22, fontWeight: '700', color: Colors.foreground },
-  timer: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.primaryTint },
-  small: { fontSize: 12, color: Colors.mutedForeground },
-  count: { fontSize: 32, fontWeight: '900', color: Colors.primary },
+  flex: { flex: 1, backgroundColor: Colors.surface },
+  pad: { padding: Space[4] },
+  content: { padding: Space[4], gap: Space[4] },
+  h1: { ...Type.title, color: Colors.ink },
+  timer: { alignItems: 'center', gap: Space[1], padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.primarySoft },
+  small: { ...Type.small, color: Colors.inkMuted },
+  count: { ...Type.titleLg, color: Colors.primary, fontVariant: ['tabular-nums'] },
   hidden: { height: 0, opacity: 0 },
-  note: { padding: 14, borderRadius: Radius.lg, backgroundColor: '#fef3c7', color: '#92400e', fontWeight: '600' },
-  refund: { padding: 14, borderRadius: Radius.lg, backgroundColor: Colors.primaryTint, fontWeight: '600', color: Colors.foreground },
-  button: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.primary },
-  buttonText: { color: Colors.primaryForeground, fontWeight: '700', fontSize: 16 },
+  note: { ...Type.small, padding: Space[3], borderRadius: Radius.md, backgroundColor: Colors.warningSoft, color: Colors.warningInk },
+  refund: { ...Type.small, padding: Space[3], borderRadius: Radius.md, backgroundColor: Colors.infoSoft, color: Colors.infoInk },
+  button: { alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingHorizontal: Space[4], borderRadius: Radius.md, backgroundColor: Colors.primary },
+  buttonText: { ...Type.bodyStrong, color: Colors.onPrimary },
   disabled: { opacity: 0.5 },
-  outline: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.primary },
-  outlineText: { color: Colors.primary, fontWeight: '700' },
-  waitingRx: { gap: 10, padding: 14, borderRadius: Radius.lg, backgroundColor: '#f3f4f6' },
-  waitingRxText: { color: '#374151' },
+  linkText: { ...Type.bodyStrong, color: Colors.primary },
+  waitingRx: { gap: Space[2], padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surfaceSubtle },
+  waitingRxText: { ...Type.small, color: Colors.inkMuted },
   checkAgain: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
 });

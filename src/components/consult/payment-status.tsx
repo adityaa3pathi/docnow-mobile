@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, findNodeHandle, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Radius } from '@/constants/theme';
+import { Radius, Space, Type } from '@/constants/theme';
 import type { ResultKind } from '@/lib/consult/bookingFlow';
 import type { VerifyOutcome } from '@/lib/consult/types';
 import { CONFIRMING_MESSAGE, HOLD_ENDED_MESSAGE, toneColors, VERIFY_MESSAGES, type Tone } from '@/lib/consult/status';
@@ -51,11 +51,11 @@ export function PaymentStatus({ result, fresh, statusLabel, doctorId, verifyOutc
       <Text ref={heading} style={[styles.title, { color: colors.fg }]} accessibilityRole="header">{title}</Text>
       {body ? <Text style={[styles.body, { color: colors.fg }]}>{body}</Text> : null}
       <View style={styles.actions}>
-        <Pressable onPress={() => router.replace('/consult/my')} accessibilityRole="button" accessibilityLabel="Done, go to My consultations">
+        <Pressable style={styles.action} onPress={() => router.replace('/consult/my')} accessibilityRole="button" accessibilityLabel="Done, go to My consultations">
           <Text style={[styles.link, { color: colors.fg }]}>Done</Text>
         </Pressable>
         {result === 'hold_ended' ? (
-          <Pressable onPress={() => router.replace({ pathname: '/consult/doctor/[id]', params: { id: doctorId } })} accessibilityRole="button" accessibilityLabel="Pick a new time">
+          <Pressable style={styles.action} onPress={() => router.replace({ pathname: '/consult/doctor/[id]', params: { id: doctorId } })} accessibilityRole="button" accessibilityLabel="Pick a new time">
             <Text style={[styles.link, { color: colors.fg }]}>Pick a new time</Text>
           </Pressable>
         ) : null}
@@ -83,9 +83,10 @@ export function CheckingNotice() {
 }
 
 const styles = StyleSheet.create({
-  box: { padding: 16, borderRadius: Radius.xl, gap: 6 },
-  title: { fontSize: 17, fontWeight: '700' },
-  body: { fontSize: 14 },
-  actions: { flexDirection: 'row', gap: 20, marginTop: 8 },
-  link: { fontWeight: '700', textDecorationLine: 'underline' },
+  box: { padding: Space[4], borderRadius: Radius.lg, gap: Space[1] },
+  title: { ...Type.titleSm },
+  body: { ...Type.small },
+  actions: { flexDirection: 'row', gap: Space[6] },
+  action: { minHeight: 44, justifyContent: 'center' },
+  link: { ...Type.bodyStrong, textDecorationLine: 'underline' },
 });

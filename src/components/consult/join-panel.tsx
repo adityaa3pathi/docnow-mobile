@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CallRoom } from '@/components/consult/call-room';
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Type } from '@/constants/theme';
 import { useServerNow } from '@/hooks/use-server-now';
 import { friendlyError } from '@/lib/consult/api';
 import { CONSENT_REQUIRED_HINT, consentText } from '@/lib/consult/consent';
@@ -96,7 +96,7 @@ export function JoinPanel({ status, type, startsAt, endsAt, otherParty, join, on
           accessibilityRole="button"
           accessibilityLabel={busy ? 'Joining' : 'Join call'}
           accessibilityState={{ disabled: busy || needsConsent, busy }}>
-          {busy ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.buttonText}>Join call</Text>}
+          {busy ? <ActivityIndicator color={Colors.onPrimary} /> : <Text style={styles.buttonText}>Join call</Text>}
         </Pressable>
       ) : null}
       {win.kind === 'open' && needsConsent ? <Text style={styles.hint}>{CONSENT_REQUIRED_HINT}</Text> : null}
@@ -106,17 +106,17 @@ export function JoinPanel({ status, type, startsAt, endsAt, otherParty, join, on
 }
 
 const styles = StyleSheet.create({
-  card: { gap: 12, padding: 16, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
-  title: { fontWeight: '700', fontSize: 16, color: Colors.foreground },
-  muted: { color: Colors.mutedForeground },
-  button: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.primary },
-  buttonText: { color: Colors.primaryForeground, fontWeight: '700', fontSize: 16 },
+  card: { gap: 12, padding: 16, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  title: { ...Type.bodyStrong, color: Colors.ink },
+  muted: { ...Type.small, color: Colors.inkMuted },
+  button: { alignItems: 'center', justifyContent: 'center', minHeight: 44, padding: 16, borderRadius: Radius.md, backgroundColor: Colors.primary },
+  buttonText: { ...Type.bodyStrong, color: Colors.onPrimary },
   off: { opacity: 0.5 },
   consent: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', minHeight: 44 },
-  box: { width: 24, height: 24, marginTop: 2, borderRadius: 6, borderWidth: 2, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  boxOn: { backgroundColor: Colors.primary },
-  tick: { color: Colors.primaryForeground, fontWeight: '800' },
-  consentText: { flex: 1, color: Colors.foreground, lineHeight: 20 },
-  hint: { textAlign: 'center', fontSize: 12, color: Colors.mutedForeground },
-  error: { padding: 12, borderRadius: Radius.lg, backgroundColor: '#fef2f2', color: Colors.destructive, fontWeight: '600' },
+  box: { width: 24, height: 24, marginTop: 2, borderRadius: Radius.sm, borderWidth: 2, borderColor: Colors.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  boxOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  tick: { ...Type.bodyStrong, color: Colors.onPrimary },
+  consentText: { ...Type.small, flex: 1, color: Colors.ink },
+  hint: { ...Type.small, textAlign: 'center', color: Colors.inkMuted },
+  error: { ...Type.small, padding: 12, borderRadius: Radius.md, backgroundColor: Colors.dangerSoft, color: Colors.dangerInk },
 });
