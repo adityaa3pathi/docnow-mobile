@@ -1,12 +1,13 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Chips } from '@/components/shop/chips';
 import { Pager } from '@/components/shop/pager';
 import { ProductCard } from '@/components/shop/product-card';
 import { SearchField } from '@/components/shop/search-field';
 import { EmptyState, ErrorState, LoadingBlock } from '@/components/consult/states';
-import { Colors, Fonts, Space, Type } from '@/constants/theme';
+import { Colors, Fonts, Radius, Space, Type } from '@/constants/theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { friendlyError } from '@/lib/consult/api';
 import {
@@ -56,6 +57,7 @@ export default function TestsScreen() {
 
       {browsing ? (
         <ScrollView contentContainerStyle={styles.browse} keyboardShouldPersistTaps="handled">
+          <CampsLink />
           {categories.data && categories.data.length > 0 && (
             <View style={styles.block}>
               <SectionTitle title="Browse by category" />
@@ -127,6 +129,24 @@ export default function TestsScreen() {
   );
 }
 
+/** The way into health camps, in the website's own words. */
+function CampsLink() {
+  return (
+    <View style={styles.block}>
+      <Pressable
+        onPress={() => router.push('/camps')}
+        accessibilityRole="button"
+        accessibilityLabel="Health camps near you. Affordable walk-in health checkups at a location near you, no home visit needed"
+        style={({ pressed }) => [styles.camps, pressed && styles.campsPressed]}>
+        <Text style={styles.campsTitle}>Health camps</Text>
+        <Text style={styles.campsBody}>
+          Affordable walk-in health checkups at a location near you — no home visit needed
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function SectionTitle({ title, note }: { title: string; note?: string }) {
   return (
     <View style={styles.titleBlock}>
@@ -174,4 +194,17 @@ const styles = StyleSheet.create({
   cards: { paddingHorizontal: Space[4], gap: Space[4] },
   count: { ...Type.small, fontFamily: Fonts.medium, color: Colors.inkMuted, paddingHorizontal: Space[4] },
   pad: { padding: Space[4] },
+  camps: {
+    gap: Space[1],
+    marginHorizontal: Space[4],
+    minHeight: 44,
+    padding: Space[4],
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primarySoft,
+  },
+  campsPressed: { backgroundColor: Colors.surfaceMuted },
+  campsTitle: { ...Type.bodyStrong, color: Colors.primary },
+  campsBody: { ...Type.small, color: Colors.inkMuted },
 });

@@ -8,11 +8,11 @@ import { formatRupees } from '@/lib/consult/format';
 import { Section } from './section';
 
 /** Offers and the wallet, as the website's PromoSection shows them. Every amount is the server's. */
-export function PromoSection({ offers, cartTotal }: { offers: Offers; cartTotal: number }) {
+export function PromoSection({ offers, cartTotal, step = 3 }: { offers: Offers; cartTotal: number; step?: number | null }) {
     const { applied, available } = offers;
 
     return (
-        <Section step={3} title="Offers and wallet">
+        <Section step={step ?? undefined} title="Offers and wallet">
             {applied ? (
                 <View style={styles.applied}>
                     <View style={styles.appliedText}>

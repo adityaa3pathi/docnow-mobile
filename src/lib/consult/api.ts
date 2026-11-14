@@ -14,6 +14,8 @@ export interface Person {
     relation: string;
     age: number;
     gender: string;
+    /** Only camp registration needs it, and only this list ever carries it. */
+    dob?: string | null;
 }
 
 /** The server's own message when there is one, otherwise a plain fallback. */

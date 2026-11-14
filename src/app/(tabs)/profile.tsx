@@ -104,6 +104,11 @@ export default function ProfileScreen() {
       />
 
       <SectionTitle>More</SectionTitle>
+      <ListRow
+        title="Health camps"
+        note="Walk-in health checkups near you"
+        onPress={() => router.push('/camps')}
+      />
       <ListRow title="Help and support" onPress={() => router.push('/info/help')} />
       <ListRow title="About DocNow" onPress={() => router.push('/info/about')} />
       <ListRow title={doctorLabel} onPress={() => router.push('/doctor')} />

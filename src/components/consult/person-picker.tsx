@@ -8,12 +8,16 @@ interface Props {
   value: string;
   onChange: (id: string) => void;
   onAdd: () => void;
+  /** Camps ask a different question of the same list, so the heading and note can change. */
+  legend?: string;
+  note?: string;
 }
 
-export function PersonPicker({ people, value, onChange, onAdd }: Props) {
+export function PersonPicker({ people, value, onChange, onAdd, legend, note }: Props) {
   return (
     <View style={styles.wrap}>
-      <Text style={styles.legend} accessibilityRole="header">Who is this visit for?</Text>
+      <Text style={styles.legend} accessibilityRole="header">{legend ?? 'Who is this visit for?'}</Text>
+      {note ? <Text style={styles.muted}>{note}</Text> : null}
       {people.length === 0 ? (
         <Text style={styles.muted}>You have no saved people yet. Add yourself or a family member to continue.</Text>
       ) : null}
