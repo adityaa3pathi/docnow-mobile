@@ -104,6 +104,8 @@ export default function ProfileScreen() {
       />
 
       <SectionTitle>More</SectionTitle>
+      <ListRow title="Help and support" onPress={() => router.push('/info/help')} />
+      <ListRow title="About DocNow" onPress={() => router.push('/info/about')} />
       <ListRow title={doctorLabel} onPress={() => router.push('/doctor')} />
 
       {/* Logout waits for the server to end the session, which can take a while on a slow network. */}

@@ -10,6 +10,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useResumeBooking } from '@/hooks/use-resume-booking';
 import { apiConfigured } from '@/lib/api';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { LocationProvider } from '@/lib/location/context';
 
 // LiveKit needs its WebRTC globals before any room is made, so this runs once at start.
 registerGlobals();
@@ -60,7 +61,11 @@ function Routes() {
           <Stack.Screen name="shop" />
           <Stack.Screen name="lab" />
           <Stack.Screen name="doctor" />
+          <Stack.Screen name="support" />
+          <Stack.Screen name="location" />
         </Stack.Protected>
+        {/* Info pages carry no personal data, so they stay reachable either side of sign-in. */}
+        <Stack.Screen name="info" />
         <Stack.Protected guard={!user}>
           <Stack.Screen name="login" />
         </Stack.Protected>
@@ -98,8 +103,10 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <StatusBar style="dark" />
-        <Routes />
+        <LocationProvider>
+          <StatusBar style="dark" />
+          <Routes />
+        </LocationProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
