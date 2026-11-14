@@ -61,7 +61,15 @@
           "microphonePermission": "DocNow uses your microphone so you can talk to your doctor during a consultation."
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "DocNow uses your photos so you can add your profile photo.",
+          "cameraPermission": "DocNow uses your camera for video consultations with your doctor.",
+          "microphonePermission": "DocNow uses your microphone so you can talk to your doctor during a consultation."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -3,7 +3,7 @@ import { isAxiosError } from 'axios';
 
 import { api, errorMessage } from '@/lib/api';
 import type {
-    AvailabilityWindow, BookingView, DoctorConsultationPage, DoctorMe, DoctorProfileInput, LeaveEntry, CancelPreview, CancelResult, CreateBookingResponse, DoctorPublicProfile, DoctorSummary,
+    AvailabilityWindow, BookingView, DoctorConsultationPage, DoctorGender, DoctorMe, DoctorProfileInput, LeaveEntry, CancelPreview, CancelResult, CreateBookingResponse, DoctorPublicProfile, DoctorSummary,
     Slot, Specialty, VerifyResponse, CartAddResult, ConsultNote, ConsultationStatus, DoctorConsultationRecord, JoinResponse, NoteInput, Prescription, PrescriptionInput,
 } from './types';
 import { CONSENT_VERSION } from './consent';
@@ -33,6 +33,7 @@ export function errorText(e: unknown): string | undefined {
 const get = <T>(url: string, config?: object) => api.get<T>(url, config).then((r) => r.data);
 const put = <T>(url: string, body?: unknown) => api.put<T>(url, body).then((r) => r.data);
 const post = <T>(url: string, body?: unknown) => api.post<T>(url, body).then((r) => r.data);
+const patch = <T>(url: string, body?: unknown) => api.patch<T>(url, body).then((r) => r.data);
 // Raw bytes through the shared client, so the PDF gets the same sign-in and token refresh.
 const bytes = (url: string) => api.get<ArrayBuffer>(url, { responseType: 'arraybuffer' }).then((r) => r.data);
 
@@ -67,6 +68,16 @@ export const doctor = {
     me: () => get<DoctorMe>('/api/doctor/me'),
     register: (body: DoctorProfileInput) => post<DoctorMe>('/api/doctor/register', body),
     resubmit: (body: DoctorProfileInput) => post<DoctorMe>('/api/doctor/resubmit', body),
+    updateMe: (body: { gender?: DoctorGender }) => patch<DoctorMe>('/api/doctor/me', body),
+    /** Multipart through the shared client, so the upload carries the same Bearer token and refresh. */
+    uploadPhoto: (file: { uri: string; name: string; type: string }) => {
+        const form = new FormData();
+        form.append('photo', file as unknown as Blob);
+        return api.post<{ photoUrl: string }>('/api/doctor/me/photo', form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 30_000,
+        }).then((r) => r.data);
+    },
     setAvailability: (windows: AvailabilityWindow[], slotMinutes?: number) =>
         put<AvailabilityWindow[]>('/api/doctor/me/availability', { windows, slotMinutes }),
     leave: () => get<LeaveEntry[]>('/api/doctor/me/leave'),

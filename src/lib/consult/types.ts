@@ -7,6 +7,8 @@ export type DoctorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
 export type ConsultationType = 'VIDEO' | 'AUDIO' | 'CHAT';
 
+export type DoctorGender = 'Male' | 'Female' | 'Other';
+
 export interface Specialty {
     id: string;
     name: string;
@@ -27,6 +29,8 @@ export interface DoctorSummary {
     consultationFee: number;
     slotMinutes: number;
     specialty: { id: string; name: string; slug: string };
+    /** Patients filter by this; null on older admin-created profiles. */
+    gender?: DoctorGender | null;
     /** Earliest bookable time (list endpoint only); null when nothing is open. */
     nextSlotAt?: string | null;
 }
@@ -108,6 +112,8 @@ export interface DoctorProfileInput {
     registrationCouncil: string;
     experienceYears: number;
     languages: string[];
+    /** Required on register and resubmit; patients filter doctors by it. */
+    gender: DoctorGender;
     bio?: string;
     photoUrl?: string;
 }

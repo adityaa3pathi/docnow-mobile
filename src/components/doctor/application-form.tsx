@@ -3,14 +3,16 @@ import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
 import { EmptyState, ErrorState, LoadingBlock } from '@/components/consult/states';
+import { PhotoPickerField } from '@/components/doctor/photo-upload';
 import { RejectedNotice } from '@/components/doctor/status-screens';
 import { ActionButton, Card, Notice } from '@/components/doctor/ui';
 import { Colors, Radius } from '@/constants/theme';
 import { DOCTOR_ME_KEY } from '@/hooks/use-doctor-me';
 import { useUnsavedWarning } from '@/hooks/use-unsaved-warning';
 import { consult, doctor as doctorApi, errorStatus, friendlyError } from '@/lib/consult/api';
-import { validateDoctorForm, type DoctorFormErrors, type DoctorFormValues } from '@/lib/consult/doctorForm';
-import type { DoctorMe } from '@/lib/consult/types';
+import { DOCTOR_GENDERS, validateDoctorForm, type DoctorFormErrors, type DoctorFormValues } from '@/lib/consult/doctorForm';
+import { toPhotoUpload, type PickedPhoto } from '@/lib/consult/doctorPhoto';
+import type { DoctorMe, DoctorProfileInput } from '@/lib/consult/types';
 
 function fromExisting(d?: DoctorMe): DoctorFormValues {
   return {
@@ -19,6 +21,7 @@ function fromExisting(d?: DoctorMe): DoctorFormValues {
     qualification: d?.qualification ?? '',
     registrationNumber: d?.registrationNumber ?? '',
     registrationCouncil: d?.registrationCouncil ?? '',
+    gender: d?.gender ?? '',
     experienceYears: String(d?.experienceYears ?? 0),
     languages: d?.languages.join(', ') ?? '',
     bio: d?.bio ?? '',
@@ -50,9 +53,21 @@ export function ApplicationForm({ existing }: { existing?: DoctorMe }) {
   const [values, setValues] = useState<DoctorFormValues>(() => fromExisting(existing));
   const [errors, setErrors] = useState<DoctorFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  // The photo can only upload once the profile exists, so it waits for the save to come back.
+  const [photo, setPhoto] = useState<PickedPhoto | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const send = useMutation({
-    mutationFn: (input: Parameters<typeof doctorApi.register>[0]) => (existing ? doctorApi.resubmit(input) : doctorApi.register(input)),
+    mutationFn: async (input: DoctorProfileInput) => {
+      const saved = existing ? await doctorApi.resubmit(input) : await doctorApi.register(input);
+      if (!photo) return saved;
+      try {
+        return { ...saved, photoUrl: (await doctorApi.uploadPhoto(toPhotoUpload(photo))).photoUrl };
+      } catch {
+        // A failed upload still lands on the pending screen, which offers "Add your photo" again.
+        return saved;
+      }
+    },
     onSuccess: (me) => queryClient.setQueryData(DOCTOR_ME_KEY, me),
     onError: (e) => {
       setFormError(
@@ -61,7 +76,7 @@ export function ApplicationForm({ existing }: { existing?: DoctorMe }) {
     },
   });
 
-  const edited = useMemo(() => JSON.stringify(values) !== initial, [values, initial]);
+  const edited = useMemo(() => JSON.stringify(values) !== initial || !!photo, [values, initial, photo]);
   // A sent application flips the doctor's status, which moves the screen on its own; that must not be blocked.
   useUnsavedWarning(edited && !send.isPending && !send.isSuccess);
 
@@ -70,8 +85,10 @@ export function ApplicationForm({ existing }: { existing?: DoctorMe }) {
   const submit = () => {
     setFormError(null);
     const result = validateDoctorForm(values);
-    if ('errors' in result) {
-      setErrors(result.errors);
+    const missingPhoto = !photo && !existing?.photoUrl;
+    setPhotoError(missingPhoto ? 'Add a photo of yourself.' : null);
+    if ('errors' in result || missingPhoto) {
+      setErrors('errors' in result ? result.errors : {});
       setFormError('Please fix the details marked below.');
       return;
     }
@@ -124,10 +141,40 @@ export function ApplicationForm({ existing }: { existing?: DoctorMe }) {
           <Field label="Qualification" hint="For example MBBS, MD (Medicine)." value={values.qualification} onChangeText={set('qualification')} error={errors.qualification} />
           <Field label="Registration number" value={values.registrationNumber} onChangeText={set('registrationNumber')} error={errors.registrationNumber} autoCapitalize="characters" />
           <Field label="Registration council" hint="For example Delhi Medical Council." value={values.registrationCouncil} onChangeText={set('registrationCouncil')} error={errors.registrationCouncil} />
+          <View style={styles.field}>
+            <Text style={styles.label}>Gender</Text>
+            <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="Gender">
+              {DOCTOR_GENDERS.map((g) => {
+                const active = values.gender === g;
+                return (
+                  <Pressable
+                    key={g}
+                    onPress={() => set('gender')(g)}
+                    style={[styles.chip, active && styles.chipActive]}
+                    accessibilityRole="radio"
+                    accessibilityLabel={g}
+                    accessibilityState={{ selected: active, checked: active }}>
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{g}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.hint}>Patients can filter doctors by gender.</Text>
+            {errors.gender ? <Text style={styles.error} accessibilityRole="alert">{errors.gender}</Text> : null}
+          </View>
           <Field label="Years of experience" value={values.experienceYears} onChangeText={set('experienceYears')} error={errors.experienceYears} keyboardType="number-pad" maxLength={2} />
           <Field label="Languages you speak" hint="Separate with commas, for example English, Hindi." value={values.languages} onChangeText={set('languages')} error={errors.languages} />
           <Field label="About you (optional)" hint="Up to 1000 characters." value={values.bio} onChangeText={set('bio')} error={errors.bio} multiline numberOfLines={4} textAlignVertical="top" />
-          <Field label="Photo web address (optional)" value={values.photoUrl} onChangeText={set('photoUrl')} error={errors.photoUrl} placeholder="https://" keyboardType="url" autoCapitalize="none" autoCorrect={false} />
+          <View style={styles.field}>
+            <Text style={styles.label}>Your photo</Text>
+            <PhotoPickerField
+              name={values.displayName}
+              photo={photo}
+              savedPhotoUrl={existing?.photoUrl}
+              onPicked={(p) => { setPhoto(p); setPhotoError(null); }}
+              error={photoError}
+            />
+          </View>
           <ActionButton
             label={existing ? 'Send again for review' : 'Send application'}
             busyLabel="Sending..."
@@ -151,10 +198,10 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#f3f3f5', borderRadius: Radius.xl, paddingHorizontal: 14, paddingVertical: 12, minHeight: 48, fontSize: 16, color: Colors.foreground },
   multiline: { minHeight: 96 },
   inputError: { borderWidth: 1, borderColor: Colors.destructive },
-  hint: { fontSize: 12, color: Colors.mutedForeground },
-  error: { fontSize: 12, fontWeight: '600', color: Colors.destructive },
+  hint: { fontSize: 14, lineHeight: 20, color: Colors.mutedForeground },
+  error: { fontSize: 14, lineHeight: 20, fontWeight: '600', color: Colors.destructive },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
+  chip: { justifyContent: 'center', minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { fontWeight: '600', color: Colors.foreground },
   chipTextActive: { color: Colors.primaryForeground },

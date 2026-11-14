@@ -1,22 +1,31 @@
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { DoctorCard } from '@/components/consult/doctor-card';
+import { DoctorFilters } from '@/components/consult/doctor-filters';
 import { SpecialtyChips } from '@/components/consult/specialty-chips';
 import { EmptyState, ErrorState, LoadingBlock } from '@/components/consult/states';
 import { LightStatusBar } from '@/components/ui/light-status-bar';
 import { Colors, Fonts, Radius, Space, Type } from '@/constants/theme';
 import { consult, friendlyError } from '@/lib/consult/api';
+import { activeFilterCount, applyDoctorFilters, languageOptions, NO_FILTERS } from '@/lib/consult/doctorFilters';
 
 export default function ConsultHome() {
   const [specialtyId, setSpecialtyId] = useState<string | null>(null);
+  const [filters, setFilters] = useState(NO_FILTERS);
   const specialties = useQuery({ queryKey: ['consult', 'specialties'], queryFn: consult.specialties });
   const doctors = useQuery({
     queryKey: ['consult', 'doctors', specialtyId],
     queryFn: () => consult.doctors(specialtyId ?? undefined),
   });
+
+  // Filtering and sorting happen over the loaded list, so no extra server call.
+  const loaded = useMemo(() => doctors.data ?? [], [doctors.data]);
+  const languages = useMemo(() => languageOptions(loaded), [loaded]);
+  const shown = useMemo(() => applyDoctorFilters(loaded, filters), [loaded, filters]);
+  const filtered = activeFilterCount(filters) > 0;
 
   const refresh = () => {
     void specialties.refetch();
@@ -50,6 +59,9 @@ export default function ConsultHome() {
         {specialties.data && specialties.data.length > 0 ? (
           <SpecialtyChips specialties={specialties.data} value={specialtyId} onChange={setSpecialtyId} />
         ) : null}
+        {loaded.length > 0 ? (
+          <DoctorFilters value={filters} onChange={setFilters} languages={languages} shown={shown.length} total={loaded.length} />
+        ) : null}
       </View>
     </View>
   );
@@ -58,7 +70,7 @@ export default function ConsultHome() {
     <FlatList
       style={styles.list}
       contentContainerStyle={styles.content}
-      data={doctors.isLoading || doctors.error ? [] : (doctors.data ?? [])}
+      data={doctors.isLoading || doctors.error ? [] : shown}
       keyExtractor={(d) => d.id}
       renderItem={({ item }) => (
         <View style={styles.cardWrap}>
@@ -70,13 +82,28 @@ export default function ConsultHome() {
         <View style={styles.cardWrap}>
           {doctors.isLoading ? <LoadingBlock label="Loading doctors" /> : null}
           {doctors.error ? <ErrorState message={friendlyError(doctors.error)} onRetry={() => void doctors.refetch()} /> : null}
-          {!doctors.isLoading && !doctors.error ? (
+          {!doctors.isLoading && !doctors.error && loaded.length > 0 && filtered ? (
+            <EmptyState
+              title="No doctors match these filters"
+              body="Try fewer filters to see more doctors."
+              action={
+                <Pressable
+                  style={styles.clear}
+                  onPress={() => setFilters(NO_FILTERS)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear filters">
+                  <Text style={styles.link}>Clear filters</Text>
+                </Pressable>
+              }
+            />
+          ) : null}
+          {!doctors.isLoading && !doctors.error && loaded.length === 0 ? (
             <EmptyState
               title="No doctors found"
               body={specialtyId ? 'No doctors are available for this specialty right now.' : 'No doctors are available right now. Please check back soon.'}
               action={
                 specialtyId ? (
-                  <Pressable onPress={() => setSpecialtyId(null)} accessibilityRole="button" accessibilityLabel="Show all doctors">
+                  <Pressable style={styles.clear} onPress={() => setSpecialtyId(null)} accessibilityRole="button" accessibilityLabel="Show all doctors">
                     <Text style={styles.link}>Show all doctors</Text>
                   </Pressable>
                 ) : undefined
@@ -108,4 +135,5 @@ const styles = StyleSheet.create({
   h2: { ...Type.titleSm, fontFamily: Fonts.bold, color: Colors.ink, paddingHorizontal: Space[4] },
   cardWrap: { paddingHorizontal: Space[4], paddingBottom: Space[4] },
   link: { ...Type.bodyStrong, color: Colors.primary },
+  clear: { justifyContent: 'center', minHeight: 44, paddingHorizontal: Space[3] },
 });

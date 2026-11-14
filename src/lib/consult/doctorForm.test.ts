@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { doctorScreen } from './doctorStatus';
-import { emptyDoctorForm, splitLanguages, validateDoctorForm, type DoctorFormValues } from './doctorForm';
+import { DOCTOR_GENDERS, emptyDoctorForm, splitLanguages, validateDoctorForm, type DoctorFormValues } from './doctorForm';
 import { conflictMessage } from './leaveText';
 import { istLocalToIso, validateLeave } from './availability';
 import { localToPicker, pickerToLocal, pickerToTime, timeToPicker } from './pickerTime';
@@ -8,7 +8,7 @@ import type { DoctorMe } from './types';
 
 const valid: DoctorFormValues = {
   displayName: ' Dr Asha Rao ', specialtyId: 'sp1', qualification: 'MBBS', registrationNumber: 'MCI-123',
-  registrationCouncil: 'Delhi Medical Council', experienceYears: '12', languages: 'English, Hindi, english, ',
+  registrationCouncil: 'Delhi Medical Council', gender: 'Female', experienceYears: '12', languages: 'English, Hindi, english, ',
   bio: '  Hello  ', photoUrl: '',
 };
 const errorsOf = (patch: Partial<DoctorFormValues>) => {
@@ -22,7 +22,7 @@ describe('application form', () => {
     expect(r).toEqual({
       input: {
         displayName: 'Dr Asha Rao', specialtyId: 'sp1', qualification: 'MBBS', registrationNumber: 'MCI-123',
-        registrationCouncil: 'Delhi Medical Council', experienceYears: 12, languages: ['English', 'Hindi'], bio: 'Hello',
+        registrationCouncil: 'Delhi Medical Council', gender: 'Female', experienceYears: 12, languages: ['English', 'Hindi'], bio: 'Hello',
       },
     });
   });
@@ -32,6 +32,8 @@ describe('application form', () => {
     expect(errorsOf({ qualification: 'M' }).qualification).toBe('Enter your qualification.');
     expect(errorsOf({ registrationNumber: 'ab' }).registrationNumber).toBe('Enter your registration number.');
     expect(errorsOf({ registrationCouncil: 'x' }).registrationCouncil).toBe('Enter your registration council.');
+    for (const bad of ['', 'female', 'Nope']) expect(errorsOf({ gender: bad }).gender).toBe('Choose your gender.');
+    for (const ok of DOCTOR_GENDERS) expect(errorsOf({ gender: ok }).gender).toBeUndefined();
     for (const bad of ['71', '-1', '1.5', 'abc', '']) expect(errorsOf({ experienceYears: bad }).experienceYears).toBe('Enter whole years, 0 to 70.');
     expect(errorsOf({ experienceYears: '0' }).experienceYears).toBeUndefined();
     expect(errorsOf({ experienceYears: '70' }).experienceYears).toBeUndefined();
@@ -48,6 +50,7 @@ describe('application form', () => {
   });
   it('starts blank and splits languages', () => {
     expect(emptyDoctorForm().experienceYears).toBe('0');
+    expect(emptyDoctorForm().gender).toBe('');
     expect(splitLanguages('a, ,b')).toEqual(['a', 'b']);
   });
 });
