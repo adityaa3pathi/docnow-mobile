@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 
+import { CartButton } from '@/components/shop/cart-button';
 import { Colors } from '@/constants/theme';
 import { useDoctorMe } from '@/hooks/use-doctor-me';
 
@@ -18,7 +19,8 @@ export default function TabsLayout() {
         name="index"
         options={{ title: 'Consult', headerStyle: { backgroundColor: Colors.primaryHover }, headerTitleStyle: { color: Colors.onPrimary, fontWeight: '700' }, headerShadowVisible: false }}
       />
-      <Tabs.Screen name="tests" options={{ title: 'Lab Tests' }} />
+      {/* The cart lives in the header here, because this tab is where tests get added. */}
+      <Tabs.Screen name="tests" options={{ title: 'Lab Tests', headerRight: () => <CartButton /> }} />
       <Tabs.Screen name="health" options={{ title: 'My Health' }} />
       <Tabs.Screen name="practice" options={{ title: 'Doctor', href: approved ? undefined : null }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
