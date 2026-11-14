@@ -19,6 +19,8 @@ export default function ShopLayout() {
         options={{ title: '', headerStyle: { backgroundColor: Colors.primaryHover }, headerTintColor: Colors.onPrimary }}
       />
       <Stack.Screen name="cart" options={{ title: 'Cart' }} />
+      {/* The order is placed by the time this opens, so there is nothing to go back to. */}
+      <Stack.Screen name="result" options={{ title: 'Your order', headerBackVisible: false }} />
     </Stack>
   );
 }
