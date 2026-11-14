@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { Colors, Radius } from '@/constants/theme';
 import { useDoctorMe } from '@/hooks/use-doctor-me';
@@ -13,7 +13,7 @@ export default function ProfileScreen() {
   // No application yet is a loaded, empty answer. Anything else opens the Doctor area.
   const doctorLabel = doctor.isSuccess && doctor.data === null ? 'Join as a doctor' : 'Doctor area';
   return (
-    <View style={styles.wrap}>
+    <ScrollView style={styles.flex} contentContainerStyle={styles.wrap}>
       <Text style={styles.name}>{user?.name ?? 'DocNow user'}</Text>
       <Text style={styles.mobile}>{user?.mobile}</Text>
       <Pressable
@@ -22,6 +22,20 @@ export default function ProfileScreen() {
         accessibilityRole="button"
         accessibilityLabel="My consultations">
         <Text style={styles.rowText}>My consultations</Text>
+      </Pressable>
+      <Pressable
+        style={styles.row}
+        onPress={() => router.push('/lab/bookings')}
+        accessibilityRole="button"
+        accessibilityLabel="Lab bookings">
+        <Text style={styles.rowText}>Lab bookings</Text>
+      </Pressable>
+      <Pressable
+        style={styles.row}
+        onPress={() => router.push('/lab/reports')}
+        accessibilityRole="button"
+        accessibilityLabel="Reports">
+        <Text style={styles.rowText}>Reports</Text>
       </Pressable>
       <Pressable
         style={styles.row}
@@ -43,12 +57,13 @@ export default function ProfileScreen() {
         accessibilityState={{ disabled: leaving, busy: leaving }}>
         <Text style={styles.buttonText}>{leaving ? 'Logging out...' : 'Log out'}</Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: 24, backgroundColor: Colors.background, gap: 6 },
+  flex: { flex: 1, backgroundColor: Colors.background },
+  wrap: { padding: 24, gap: 6 },
   name: { fontSize: 22, fontWeight: '700', color: Colors.foreground },
   mobile: { color: Colors.mutedForeground, marginBottom: 20 },
   row: { borderRadius: Radius.xl, padding: 16, borderWidth: 1, borderColor: Colors.muted, marginBottom: 12 },
