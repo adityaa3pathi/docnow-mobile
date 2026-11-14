@@ -44,6 +44,20 @@ export default function ProfileScreen() {
         accessibilityLabel={doctorLabel}>
         <Text style={styles.rowText}>{doctorLabel}</Text>
       </Pressable>
+      <Pressable
+        style={styles.row}
+        onPress={() => router.push('/info/help')}
+        accessibilityRole="button"
+        accessibilityLabel="Help and support">
+        <Text style={styles.rowText}>Help and support</Text>
+      </Pressable>
+      <Pressable
+        style={styles.row}
+        onPress={() => router.push('/info/about')}
+        accessibilityRole="button"
+        accessibilityLabel="About DocNow">
+        <Text style={styles.rowText}>About DocNow</Text>
+      </Pressable>
       {/* Logout waits for the server to end the session, which can take a while on a slow network. */}
       <Pressable
         style={[styles.button, leaving && styles.busy]}
