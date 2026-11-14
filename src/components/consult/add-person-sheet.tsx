@@ -8,28 +8,31 @@ import { GENDERS, RELATIONS, validatePerson } from '@/lib/consult/people';
 
 interface Props {
   visible: boolean;
+  /** Set to change a saved family member instead of adding a new one. */
+  person?: Person | null;
   onClose: () => void;
   onAdded: (person: Person) => void;
 }
 
-export function AddPersonSheet({ visible, onClose, onAdded }: Props) {
-  const [name, setName] = useState('');
-  const [relation, setRelation] = useState('');
-  const [age, setAge] = useState('');
-  const [gender, setGender] = useState<string>('Male');
+/** Mounted only while open and keyed on the person, so every visit starts from the saved values. */
+export function AddPersonSheet({ visible, person, onClose, onAdded }: Props) {
+  if (!visible) return null;
+  return <PersonForm key={person?.id ?? 'new'} person={person ?? null} onClose={onClose} onAdded={onAdded} />;
+}
+
+function PersonForm({ person, onClose, onAdded }: Omit<Props, 'visible'> & { person: Person | null }) {
+  const [name, setName] = useState(person?.name ?? '');
+  const [relation, setRelation] = useState(person?.relation ?? '');
+  const [age, setAge] = useState(person?.age ? String(person.age) : '');
+  const [gender, setGender] = useState<string>(person?.gender ?? 'Male');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const editing = Boolean(person);
+  // Self is the account holder, whose own name, age and sex live in Edit profile.
+  const lockRelation = person?.relation?.toLowerCase() === 'self';
 
-  const reset = () => {
-    setName('');
-    setRelation('');
-    setAge('');
-    setGender('Male');
-    setError('');
-  };
   const close = () => {
     if (saving) return;
-    reset();
     onClose();
   };
 
@@ -43,41 +46,45 @@ export function AddPersonSheet({ visible, onClose, onAdded }: Props) {
     setSaving(true);
     setError('');
     try {
-      const person = await people.add(input);
-      reset();
-      onAdded(person);
+      const saved = person ? await people.update(person.id, input) : await people.add(input);
+      onAdded(saved);
       onClose();
     } catch (e) {
-      setError(friendlyError(e, 'Could not add this person. Please try again.'));
+      setError(friendlyError(e, 'Could not save this person. Please try again.'));
     } finally {
       setSaving(false);
     }
   }
 
-  const choice = (label: string, active: boolean, onPress: () => void) => (
+  const choice = (label: string, active: boolean, onPress: () => void, disabled = false) => (
     <Pressable
       key={label}
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="radio"
       accessibilityLabel={label}
-      accessibilityState={{ checked: active }}
-      style={[styles.chip, active && styles.chipOn]}>
+      accessibilityState={{ checked: active, disabled }}
+      style={[styles.chip, active && styles.chipOn, disabled && styles.chipOff]}>
       <Text style={[styles.chipText, active && styles.chipTextOn]}>{label}</Text>
     </Pressable>
   );
 
+  const relations = lockRelation && person ? [person.relation] : [...RELATIONS];
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
+    <Modal visible animationType="slide" transparent onRequestClose={close}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.backdrop}>
         <View style={styles.sheet}>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-            <Text style={styles.title} accessibilityRole="header">Add a person</Text>
+            <Text style={styles.title} accessibilityRole="header">{editing ? 'Edit this person' : 'Add a person'}</Text>
 
             <Text style={styles.label}>Name</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Enter name" accessibilityLabel="Name" />
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Enter name" placeholderTextColor={Colors.inkSubtle} accessibilityLabel="Name" />
 
             <Text style={styles.label}>Relation</Text>
-            <View style={styles.wrap}>{RELATIONS.map((r) => choice(r, relation === r, () => setRelation(r)))}</View>
+            <View style={styles.wrap} accessibilityRole="radiogroup">
+              {relations.map((r) => choice(r, relation === r, () => setRelation(r), lockRelation))}
+            </View>
 
             <Text style={styles.label}>Age</Text>
             <TextInput
@@ -87,16 +94,22 @@ export function AddPersonSheet({ visible, onClose, onAdded }: Props) {
               keyboardType="number-pad"
               maxLength={3}
               placeholder="Age in years"
+              placeholderTextColor={Colors.inkSubtle}
               accessibilityLabel="Age"
             />
 
             <Text style={styles.label}>Sex</Text>
-            <View style={styles.wrap}>{GENDERS.map((g) => choice(g, gender === g, () => setGender(g)))}</View>
+            <View style={styles.wrap} accessibilityRole="radiogroup">{GENDERS.map((g) => choice(g, gender === g, () => setGender(g)))}</View>
 
             {error ? <Notice tone="error">{error}</Notice> : null}
 
             <View style={styles.actions}>
-              <ActionButton label="Add person" busyLabel="Adding..." busy={saving} onPress={save} />
+              <ActionButton
+                label={editing ? 'Save changes' : 'Add person'}
+                busyLabel="Saving..."
+                busy={saving}
+                onPress={save}
+              />
               <Pressable style={styles.secondary} onPress={close} disabled={saving} accessibilityRole="button" accessibilityLabel="Cancel">
                 <Text style={styles.secondaryText}>Cancel</Text>
               </Pressable>
@@ -119,6 +132,7 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Space[2] },
   chip: { justifyContent: 'center', minHeight: 44, paddingHorizontal: Space[4], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong },
   chipOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipOff: { opacity: 0.6 },
   chipText: { ...Type.bodyStrong, color: Colors.ink },
   chipTextOn: { color: Colors.onPrimary },
   actions: { gap: Space[2], marginTop: Space[4] },

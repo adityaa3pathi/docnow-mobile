@@ -36,6 +36,8 @@ export const addresses = {
         put<{ address: SavedAddress }>(`/api/profile/addresses/${id}`, body).then((r) => r.address),
     saveCoords: (id: string, lat: string, long: string) =>
         api.patch(`/api/profile/addresses/${id}/coords`, { lat, long }).then(() => undefined),
+    /** Refused while it is the only saved address, so the screen shows the server's reason. */
+    remove: (id: string) => api.delete(`/api/profile/addresses/${id}`).then(() => undefined),
 };
 
 export const location = {

@@ -17,6 +17,8 @@ import { Notice } from '@/components/doctor/ui';
 import { Colors, Fonts, Radius, Space, Type } from '@/constants/theme';
 import { useOffers } from '@/hooks/use-offers';
 import { useSlotHold } from '@/hooks/use-slot-hold';
+import { resolveDefaultId } from '@/lib/account/addresses';
+import { readDefaultAddressId } from '@/lib/account/store';
 import { CART_KEY, cartApi, useCart, useRemoveCartItem } from '@/lib/cart';
 import {
     addresses as addressApi,
@@ -70,8 +72,14 @@ export default function CartScreen() {
     const addressList = useQuery({ queryKey: ['checkout', 'addresses'], queryFn: addressApi.list, staleTime: 60_000 });
     const saved = addressList.data ?? [];
     const [chosenAddressId, setChosenAddressId] = useState('');
-    // The first saved address is used until one is picked, so checkout is never stuck with none.
-    const address = saved.find((row) => row.id === chosenAddressId) ?? saved[0] ?? null;
+    const defaultAddress = useQuery({
+        queryKey: ['account', 'default-address'],
+        queryFn: readDefaultAddressId,
+        staleTime: 60_000,
+    });
+    // The default address is used until one is picked, so checkout is never stuck with none.
+    const preferredId = resolveDefaultId(saved, defaultAddress.data);
+    const address = saved.find((row) => row.id === chosenAddressId) ?? saved.find((row) => row.id === preferredId) ?? null;
     const addressId = address?.id ?? '';
 
     const days = useMemo(() => Array.from({ length: DAYS_AHEAD }, (_, index) => istDayKeyPlus(index)), []);

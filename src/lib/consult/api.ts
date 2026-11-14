@@ -57,11 +57,21 @@ export const consult = {
     addTestsToCart: (id: string) => post<CartAddResult>(`/api/consult/bookings/${id}/recommended-tests/cart`),
 };
 
+export interface PersonBody {
+    name: string;
+    relation: string;
+    age: number;
+    gender: string;
+}
+
 export const people = {
     list: () => get<Person[]>('/api/profile/patients'),
     ensureSelf: () => post<Person>('/api/profile/patients/ensure-self'),
-    add: (body: { name: string; relation: string; age: number; gender: string }) =>
-        post<{ patient: Person }>('/api/profile/patients', body).then((r) => r.patient),
+    add: (body: PersonBody) => post<{ patient: Person }>('/api/profile/patients', body).then((r) => r.patient),
+    update: (id: string, body: PersonBody) =>
+        put<{ patient: Person }>(`/api/profile/patients/${id}`, body).then((r) => r.patient),
+    /** Refused with 409 while this person still has bookings, so the screen shows the server's reason. */
+    remove: (id: string) => api.delete(`/api/profile/patients/${id}`).then(() => undefined),
 };
 
 export const doctor = {

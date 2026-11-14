@@ -55,6 +55,7 @@ function Routes() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Protected guard={!!user}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="account" />
           <Stack.Screen name="consult" />
           <Stack.Screen name="shop" />
           <Stack.Screen name="lab" />
