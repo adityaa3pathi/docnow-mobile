@@ -55,11 +55,12 @@ export function useResumeBooking() {
         if (current?.id === saved.id) await clearActiveBooking();
         return;
       }
-      const target = `/consult/booking/${saved.id}`;
-      if (anyCheckoutOpen() || pathRef.current === target) return;
+      const targetPath = `/consult/booking/${saved.id}`;
+      if (anyCheckoutOpen() || pathRef.current === targetPath) return;
       // Replace when a booking screen is already in front, so screens never stack.
-      if (pathRef.current.startsWith('/consult/booking/') || pathRef.current === '/consult/book') router.replace(target);
-      else router.push(target);
+      const route = { pathname: '/consult/booking/[id]' as const, params: { id: saved.id } };
+      if (pathRef.current.startsWith('/consult/booking/') || pathRef.current === '/consult/book') router.replace(route);
+      else router.push(route);
     } finally {
       release(lock);
     }

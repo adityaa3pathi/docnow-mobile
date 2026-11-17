@@ -4,6 +4,7 @@ import { isAxiosError } from 'axios';
 
 import type { SignupBody } from '@/lib/account/auth-forms';
 import { api, clearTokens, hasTokens, saveTokens, setSessionExpiredHandler } from '@/lib/api';
+import { unregisterPushToken } from '@/lib/push-registration';
 
 export type User = {
   id: string;
@@ -47,6 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // First, while the session is still valid: stop this phone receiving the account's notifications.
+    await unregisterPushToken();
     try {
       await api.post('/api/auth/logout');
     } catch {

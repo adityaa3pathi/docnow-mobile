@@ -2,11 +2,13 @@
 import { isAxiosError } from 'axios';
 
 import { api, errorMessage } from '@/lib/api';
-import type {
-    AvailabilityWindow, BookingView, DoctorConsultationPage, DoctorGender, DoctorMe, DoctorProfileInput, LeaveEntry, CancelPreview, CancelResult, CreateBookingResponse, DoctorPublicProfile, DoctorSummary,
-    Slot, Specialty, VerifyResponse, CartAddResult, ConsultNote, ConsultationStatus, DoctorConsultationRecord, JoinResponse, NoteInput, Prescription, PrescriptionInput,
-} from './types';
 import { CONSENT_VERSION } from './consent';
+import type {
+    AvailabilityWindow, BookingView, CancelPreview, CancelResult, CartAddResult, ConsultNote, ConsultationStatus,
+    ConsultAttachment, CreateBookingInput, CreateBookingResponse, DoctorConsultationPage, GuestInfo, DoctorConsultationRecord, DoctorMe, DoctorProfileInput,
+    DoctorPublicProfile, DoctorSummary, JoinResponse, LeaveEntry, NoteInput, Prescription, PrescriptionInput, ReassignOption,
+    Slot, Specialty, VerifyResponse,
+} from './types';
 
 export interface Person {
     id: string;
@@ -14,7 +16,21 @@ export interface Person {
     relation: string;
     age: number;
     gender: string;
+    // Family intake (older servers leave these out).
+    /** The family member's own 10-digit mobile: they see the booking when they sign in with it. */
+    phone?: string | null;
+    preferredLanguage?: 'hi' | 'en';
+    bloodGroup?: string | null;
+    allergies?: string[];
+    chronicConditions?: string[];
+    currentMedications?: string[];
+    /** Set once the family member accepted bookings on their own phone. */
+    linkedAt?: string | null;
+    /** Set when the owner of `phone` said "this is not me". */
+    linkDeclinedAt?: string | null;
 }
+
+export type PersonIntake = Pick<Person, 'phone' | 'preferredLanguage' | 'bloodGroup' | 'allergies' | 'chronicConditions' | 'currentMedications'>;
 
 /** The server's own message when there is one, otherwise a plain fallback. */
 export function friendlyError(e: unknown, fallback?: string): string {
@@ -33,61 +49,68 @@ export function errorText(e: unknown): string | undefined {
 const get = <T>(url: string, config?: object) => api.get<T>(url, config).then((r) => r.data);
 const put = <T>(url: string, body?: unknown) => api.put<T>(url, body).then((r) => r.data);
 const post = <T>(url: string, body?: unknown) => api.post<T>(url, body).then((r) => r.data);
-const patch = <T>(url: string, body?: unknown) => api.patch<T>(url, body).then((r) => r.data);
-// Raw bytes through the shared client, so the PDF gets the same sign-in and token refresh.
-const bytes = (url: string) => api.get<ArrayBuffer>(url, { responseType: 'arraybuffer' }).then((r) => r.data);
 
 export const consult = {
     specialties: () => get<Specialty[]>('/api/consult/specialties'),
     doctors: (specialtyId?: string) => get<DoctorSummary[]>('/api/consult/doctors', { params: specialtyId ? { specialtyId } : undefined }),
     doctor: (id: string) => get<DoctorPublicProfile>(`/api/consult/doctors/${id}`),
     slots: (doctorId: string) => get<Slot[]>(`/api/consult/doctors/${doctorId}/slots`),
-    createBooking: (body: { slotId: string; patientId: string; idempotencyKey: string }) =>
-        post<CreateBookingResponse>('/api/consult/bookings', body),
+    createBooking: (body: CreateBookingInput) => post<CreateBookingResponse>('/api/consult/bookings', body),
     bookings: () => get<BookingView[]>('/api/consult/bookings'),
     booking: (id: string) => get<BookingView>(`/api/consult/bookings/${id}`, { timeout: 10_000 }),
     verify: (id: string, body: { razorpay_order_id?: string; razorpay_payment_id: string; razorpay_signature: string }) =>
         post<VerifyResponse>(`/api/consult/bookings/${id}/verify`, body),
     cancelPreview: (id: string) => get<CancelPreview>(`/api/consult/bookings/${id}/cancel-preview`),
     cancel: (id: string, reason?: string) => post<CancelResult>(`/api/consult/bookings/${id}/cancel`, { reason }),
-    /** The server refuses the join without the NMC teleconsent the patient ticked on the join panel. */
-    join: (id: string) => post<JoinResponse>(`/api/consult/bookings/${id}/join`, { consent: true, consentVersion: CONSENT_VERSION, channel: 'app' }),
+    join: (id: string, consent: true) => post<JoinResponse>(`/api/consult/bookings/${id}/join`, { consent, consentVersion: CONSENT_VERSION, channel: 'app' }),
     prescription: (id: string) => get<Prescription>(`/api/consult/bookings/${id}/prescription`),
-    prescriptionPdf: (id: string) => bytes(`/api/consult/bookings/${id}/prescription.pdf`),
+    prescriptionPdfUrl: (id: string) => `${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/consult/bookings/${id}/prescription.pdf`,
+    /** A signed link that opens the PDF without sign-in headers (in-app browser, sharing). */
+    prescriptionLink: (id: string) =>
+        get<{ token: string; expiresInHours: number }>(`/api/consult/bookings/${id}/prescription/link`).then(
+            (r) => `${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/consult/prescriptions/public/${r.token}`,
+        ),
+    // Family member: "booked for you by …" — accept once per person, or say it is not them.
+    acceptFamily: (patientId: string) => post<{ patientId: string; linked: boolean }>(`/api/consult/family/${patientId}/accept`),
+    declineFamily: (patientId: string) => post<{ patientId: string; linked: boolean }>(`/api/consult/family/${patientId}/decline`),
+    // Zero-login join (docnow.in/call/<token>): works signed in or not.
+    guestInfo: (token: string) => get<GuestInfo>(`/api/consult/guest/${encodeURIComponent(token)}`),
+    /** `consent` is the NMC teleconsultation checkbox; the server refuses the join without it. */
+    guestJoin: (token: string, consent: true) =>
+        post<JoinResponse>(`/api/consult/guest/${encodeURIComponent(token)}/join`, { consent, consentVersion: CONSENT_VERSION }),
+    /** Uploads one photo / PDF of an outside record; book with its id in `attachmentIds`. */
+    uploadAttachment: (file: { uri: string; name: string; mimeType: string }) => {
+        const form = new FormData();
+        // React Native's FormData takes a file as { uri, name, type }.
+        form.append('file', { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
+        return api
+            .post<ConsultAttachment>('/api/consult/attachments', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60_000 })
+            .then((r) => r.data);
+    },
+    removeAttachment: (id: string) => api.delete(`/api/consult/attachments/${id}`).then((r) => r.data),
     addTestsToCart: (id: string) => post<CartAddResult>(`/api/consult/bookings/${id}/recommended-tests/cart`),
+    // Doctor running late: each answers 409 until the server sees the doctor 5+ minutes late.
+    rescheduleSlots: (id: string) => get<Slot[]>(`/api/consult/bookings/${id}/reschedule-slots`),
+    reschedule: (id: string, newSlotId: string) => post<BookingView>(`/api/consult/bookings/${id}/reschedule`, { newSlotId }),
+    reassignOption: (id: string) =>
+        get<{ option: ReassignOption | null }>(`/api/consult/bookings/${id}/reassign-option`).then((r) => r.option),
+    reassign: (id: string, slotId: string) => post<BookingView>(`/api/consult/bookings/${id}/reassign`, { slotId }),
 };
-
-export interface PersonBody {
-    name: string;
-    relation: string;
-    age: number;
-    gender: string;
-}
 
 export const people = {
     list: () => get<Person[]>('/api/profile/patients'),
     ensureSelf: () => post<Person>('/api/profile/patients/ensure-self'),
-    add: (body: PersonBody) => post<{ patient: Person }>('/api/profile/patients', body).then((r) => r.patient),
-    update: (id: string, body: PersonBody) =>
-        put<{ patient: Person }>(`/api/profile/patients/${id}`, body).then((r) => r.patient),
-    /** Refused with 409 while this person still has bookings, so the screen shows the server's reason. */
-    remove: (id: string) => api.delete(`/api/profile/patients/${id}`).then(() => undefined),
+    add: (body: { name: string; relation: string; age: number; gender: string }) =>
+        post<{ patient: Person }>('/api/profile/patients', body).then((r) => r.patient),
+    /** Saves the family intake (phone, language, health snapshot). */
+    updateIntake: (id: string, body: PersonIntake) =>
+        api.patch<{ patient: Person }>(`/api/profile/patients/${id}`, body).then((r) => r.data.patient),
 };
 
 export const doctor = {
     me: () => get<DoctorMe>('/api/doctor/me'),
     register: (body: DoctorProfileInput) => post<DoctorMe>('/api/doctor/register', body),
     resubmit: (body: DoctorProfileInput) => post<DoctorMe>('/api/doctor/resubmit', body),
-    updateMe: (body: { gender?: DoctorGender }) => patch<DoctorMe>('/api/doctor/me', body),
-    /** Multipart through the shared client, so the upload carries the same Bearer token and refresh. */
-    uploadPhoto: (file: { uri: string; name: string; type: string }) => {
-        const form = new FormData();
-        form.append('photo', file as unknown as Blob);
-        return api.post<{ photoUrl: string }>('/api/doctor/me/photo', form, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            timeout: 30_000,
-        }).then((r) => r.data);
-    },
     setAvailability: (windows: AvailabilityWindow[], slotMinutes?: number) =>
         put<AvailabilityWindow[]>('/api/doctor/me/availability', { windows, slotMinutes }),
     leave: () => get<LeaveEntry[]>('/api/doctor/me/leave'),
@@ -96,24 +119,17 @@ export const doctor = {
     removeLeave: (id: string) => api.delete(`/api/doctor/me/leave/${id}`).then((r) => r.data),
     consultations: (scope: 'upcoming' | 'past', cursor?: string | null) =>
         get<DoctorConsultationPage>('/api/doctor/me/consultations', { params: { scope, limit: 30, ...(cursor ? { cursor } : {}) } }),
-    consultation: (id: string) => get<DoctorConsultationRecord>(`/api/doctor/me/consultations/${id}`),
+    consultation: (id: string) => get<DoctorConsultationRecord>(`/api/doctor/me/consultations/${id}`, { timeout: 10_000 }),
     join: (id: string) => post<JoinResponse>(`/api/doctor/me/consultations/${id}/join`),
+    /** Moves IN_PROGRESS to COMPLETED and closes the video room for everyone. */
     end: (id: string) => post<{ status: ConsultationStatus }>(`/api/doctor/me/consultations/${id}/end`),
+    /** Notes lock once a prescription is issued (409). */
     saveNotes: (id: string, body: NoteInput) => put<ConsultNote>(`/api/doctor/me/consultations/${id}/notes`, body),
-    issuePrescription: (id: string, body: PrescriptionInput) => post<Prescription>(`/api/doctor/me/consultations/${id}/prescription`, body),
-    reissuePrescription: (id: string, body: { reason: string; prescription: PrescriptionInput }) =>
-        post<Prescription>(`/api/doctor/me/consultations/${id}/prescription/reissue`, body),
-    prescriptionPdf: (id: string) => bytes(`/api/doctor/me/consultations/${id}/prescription.pdf`),
+    issuePrescription: (id: string, body: PrescriptionInput) =>
+        post<Prescription>(`/api/doctor/me/consultations/${id}/prescription`, body),
 };
 
-export type CallEventName = 'connect_failed' | 'disconnected' | 'media_failed' | 'reconnected';
-
-/** The LiveKit join token is the credential. Every status resolves, so a 401 never triggers sign-out. */
-export const callEvents = {
-  report: (token: string, event: CallEventName, reason?: string): Promise<void> =>
-    api.post('/api/consult/call-events', { token, event, reason: reason?.slice(0, 200) }, { validateStatus: () => true, timeout: 5_000 })
-      .then(() => undefined),
-};
+// ── Catalog (doctor's test-picker in the prescription builder) ───────────────
 
 export interface CatalogTest {
   partnerCode: string;

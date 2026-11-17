@@ -22,6 +22,7 @@ export default function ConsultLayout() {
       <Stack.Screen name="book" options={{ title: 'Review and pay' }} />
       <Stack.Screen name="booking/[id]" options={{ title: 'Booking' }} />
       <Stack.Screen name="my" options={{ title: 'My consultations' }} />
+      <Stack.Screen name="prescription/[id]" options={{ title: 'Prescription' }} />
     </Stack>
   );
 }

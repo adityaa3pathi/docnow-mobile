@@ -15,27 +15,44 @@
           "tez",
           "phonepe",
           "paytmmp"
-        ],
-        "UIBackgroundModes": [
-          "audio"
         ]
-      }
+      },
+      "associatedDomains": [
+        "applinks:docnow.in",
+        "applinks:www.docnow.in"
+      ]
     },
     "android": {
       "package": "in.docnow.app",
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.BLUETOOTH_CONNECT"
-      ],
-      "blockedPermissions": [
-        "android.permission.SYSTEM_ALERT_WINDOW"
-      ],
       "adaptiveIcon": {
         "backgroundColor": "#4b2192",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "docnow.in",
+              "pathPrefix": "/call/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.docnow.in",
+              "pathPrefix": "/call/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "output": "static",
@@ -53,21 +70,37 @@
       ],
       "expo-secure-store",
       "@react-native-community/datetimepicker",
-      "@livekit/react-native-expo-plugin",
       [
-        "@config-plugins/react-native-webrtc",
+        "expo-notifications",
         {
-          "cameraPermission": "DocNow uses your camera for video consultations with your doctor.",
-          "microphonePermission": "DocNow uses your microphone so you can talk to your doctor during a consultation."
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#4b2192",
+          "defaultChannel": "reminders",
+          "sounds": [
+            "./assets/sounds/teleconsult_call.wav"
+          ]
         }
       ],
       "expo-sharing",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "DocNow uses your camera for video consultations with your doctor.",
+          "microphonePermission": "DocNow uses your microphone so your doctor can hear you during consultations.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "DocNow uses your microphone so your doctor can hear you during consultations."
+        }
+      ],
+      [
         "expo-image-picker",
         {
-          "photosPermission": "DocNow uses your photos so you can add your profile photo.",
-          "cameraPermission": "DocNow uses your camera for video consultations with your doctor.",
-          "microphonePermission": "DocNow uses your microphone so you can talk to your doctor during a consultation."
+          "photosPermission": "DocNow uses your photos so you can share old prescriptions and reports with your doctor.",
+          "cameraPermission": "DocNow uses your camera so you can photograph prescriptions and reports for your doctor."
         }
       ]
     ],

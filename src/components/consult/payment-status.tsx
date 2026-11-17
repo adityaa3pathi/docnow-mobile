@@ -2,9 +2,8 @@ import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, findNodeHandle, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Radius, Space, Type } from '@/constants/theme';
+import { Radius } from '@/constants/theme';
 import type { ResultKind } from '@/lib/consult/bookingFlow';
-import type { VerifyOutcome } from '@/lib/consult/types';
 import { CONFIRMING_MESSAGE, HOLD_ENDED_MESSAGE, toneColors, VERIFY_MESSAGES, type Tone } from '@/lib/consult/status';
 
 interface Props {
@@ -13,15 +12,12 @@ interface Props {
   fresh: boolean;
   statusLabel: string;
   doctorId: string;
-  /** What the payment check said, so a slot reclaimed by a late payment is explained. */
-  verifyOutcome?: VerifyOutcome | null;
 }
 
-function copy(result: ResultKind, fresh: boolean, statusLabel: string, outcome?: VerifyOutcome | null): { title: string; body: string; tone: Tone } {
+function copy(result: ResultKind, fresh: boolean, statusLabel: string): { title: string; body: string; tone: Tone } {
   switch (result) {
     case 'booked':
-      if (!fresh) return { title: statusLabel, body: '', tone: 'success' };
-      return outcome === 'reclaimed' || outcome === 'already' ? VERIFY_MESSAGES[outcome] : VERIFY_MESSAGES.confirmed;
+      return fresh ? VERIFY_MESSAGES.confirmed : { title: statusLabel, body: '', tone: 'success' };
     case 'refund':
       return VERIFY_MESSAGES.refund_created;
     case 'checking':
@@ -36,9 +32,9 @@ function copy(result: ResultKind, fresh: boolean, statusLabel: string, outcome?:
 }
 
 /** One message per outcome, announced to screen readers. Done goes to My consultations. */
-export function PaymentStatus({ result, fresh, statusLabel, doctorId, verifyOutcome }: Props) {
-  const heading = useRef<Text>(null);
-  const { title, body, tone } = copy(result, fresh, statusLabel, verifyOutcome);
+export function PaymentStatus({ result, fresh, statusLabel, doctorId }: Props) {
+  const heading = useRef<React.ElementRef<typeof Text>>(null);
+  const { title, body, tone } = copy(result, fresh, statusLabel);
   const colors = toneColors[tone];
 
   useEffect(() => {
@@ -51,11 +47,11 @@ export function PaymentStatus({ result, fresh, statusLabel, doctorId, verifyOutc
       <Text ref={heading} style={[styles.title, { color: colors.fg }]} accessibilityRole="header">{title}</Text>
       {body ? <Text style={[styles.body, { color: colors.fg }]}>{body}</Text> : null}
       <View style={styles.actions}>
-        <Pressable style={styles.action} onPress={() => router.replace('/consult/my')} accessibilityRole="button" accessibilityLabel="Done, go to My consultations">
+        <Pressable onPress={() => router.replace('/consult/my')} accessibilityRole="button" accessibilityLabel="Done, go to My consultations">
           <Text style={[styles.link, { color: colors.fg }]}>Done</Text>
         </Pressable>
         {result === 'hold_ended' ? (
-          <Pressable style={styles.action} onPress={() => router.replace({ pathname: '/consult/doctor/[id]', params: { id: doctorId } })} accessibilityRole="button" accessibilityLabel="Pick a new time">
+          <Pressable onPress={() => router.replace({ pathname: '/consult/doctor/[id]', params: { id: doctorId } })} accessibilityRole="button" accessibilityLabel="Pick a new time">
             <Text style={[styles.link, { color: colors.fg }]}>Pick a new time</Text>
           </Pressable>
         ) : null}
@@ -83,10 +79,9 @@ export function CheckingNotice() {
 }
 
 const styles = StyleSheet.create({
-  box: { padding: Space[4], borderRadius: Radius.lg, gap: Space[1] },
-  title: { ...Type.titleSm },
-  body: { ...Type.small },
-  actions: { flexDirection: 'row', gap: Space[6] },
-  action: { minHeight: 44, justifyContent: 'center' },
-  link: { ...Type.bodyStrong, textDecorationLine: 'underline' },
+  box: { padding: 16, borderRadius: Radius.xl, gap: 6 },
+  title: { fontSize: 17, fontWeight: '700' },
+  body: { fontSize: 14 },
+  actions: { flexDirection: 'row', gap: 20, marginTop: 8 },
+  link: { fontWeight: '700', textDecorationLine: 'underline' },
 });

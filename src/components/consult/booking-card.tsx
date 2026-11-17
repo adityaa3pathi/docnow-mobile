@@ -2,7 +2,8 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/consult/badge';
-import { Colors, Radius, Space, Type } from '@/constants/theme';
+import { BookedForYouBadge } from '@/components/consult/family-access';
+import { Colors, Radius } from '@/constants/theme';
 import { formatPaise } from '@/lib/consult/format';
 import { statusInfo } from '@/lib/consult/status';
 import { formatIstDateTime } from '@/lib/consult/time';
@@ -13,7 +14,9 @@ const REFUND_SHORT = { PENDING: 'Refund on its way', PROCESSED: 'Refund sent', F
 export function BookingCard({ booking, holdLive }: { booking: BookingView; holdLive?: boolean }) {
   const info = statusInfo(booking.status);
   const refund = booking.refundPaise > 0 ? `${formatPaise(booking.refundPaise)} ${booking.refundStatus ? REFUND_SHORT[booking.refundStatus] : 'refund being prepared'}` : null;
-  const label = `${booking.doctorName}, ${booking.specialty}, ${info.label}, ${formatIstDateTime(booking.startsAt)}, for ${booking.patientName}${refund ? `, ${refund}` : ''}`;
+  const forYou = !!booking.isBookedForYou;
+  const pending = booking.familyAccess === 'pending';
+  const label = `${booking.doctorName}, ${booking.specialty}, ${info.label}, ${formatIstDateTime(booking.startsAt)}, for ${booking.patientName}${forYou ? ', booked for you' : ''}${refund ? `, ${refund}` : ''}`;
   return (
     <Pressable
       style={styles.card}
@@ -28,25 +31,26 @@ export function BookingCard({ booking, holdLive }: { booking: BookingView; holdL
         <Badge tone={info.tone}>{info.label}</Badge>
       </View>
       <Text style={styles.when}>{formatIstDateTime(booking.startsAt)}</Text>
-      <Text style={styles.small}>
-        {booking.isBookedForYou
-          ? `Booked for you by ${booking.bookedBy?.name ?? 'your family member'}`
-          : `For ${booking.patientName} · ${formatPaise(booking.amountPaise)}`}
-      </Text>
+      {forYou ? (
+        <BookedForYouBadge booking={booking} />
+      ) : (
+        <Text style={styles.small}>For {booking.patientName} · {formatPaise(booking.amountPaise)}</Text>
+      )}
       {refund ? <Text style={styles.refund}>{refund}</Text> : null}
       {holdLive ? <Text style={styles.cta}>Continue to pay</Text> : null}
+      {pending ? <Text style={styles.cta}>Confirm it&apos;s you to join ›</Text> : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { gap: Space[1], padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
-  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: Space[2] },
+  card: { gap: 4, padding: 14, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
+  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
   topText: { flex: 1 },
-  name: { ...Type.bodyStrong, color: Colors.ink },
-  muted: { ...Type.small, color: Colors.inkMuted },
-  when: { ...Type.body, marginTop: Space[1], color: Colors.ink, fontVariant: ['tabular-nums'] },
-  small: { ...Type.small, color: Colors.inkMuted, fontVariant: ['tabular-nums'] },
-  refund: { ...Type.small, color: Colors.inkMuted },
-  cta: { ...Type.bodyStrong, marginTop: Space[1], color: Colors.primary },
+  name: { fontWeight: '700', fontSize: 16, color: Colors.foreground },
+  muted: { color: Colors.mutedForeground },
+  when: { marginTop: 4, fontWeight: '600', color: Colors.foreground },
+  small: { fontSize: 12, color: Colors.mutedForeground },
+  refund: { fontSize: 12, fontWeight: '600', color: Colors.primary },
+  cta: { marginTop: 6, fontWeight: '700', color: Colors.primary },
 });

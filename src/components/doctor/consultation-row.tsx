@@ -14,25 +14,32 @@ export function ConsultationRow({ item }: { item: DoctorConsultation }) {
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-      onPress={() => router.push({ pathname: '/doctor/consultation/[id]', params: { id: item.id } })}
+      onPress={() => router.push({ pathname: '/doctor/consultations/[id]' as any, params: { id: item.id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${item.patientName}, ${when}, Indian time, ${status.label}`}
-      accessibilityHint="Opens the consultation">
+      accessibilityHint="Opens the consultation"
+      accessibilityLabel={`${item.patientName}, ${when}, Indian time, ${status.label}`}>
       <View style={styles.top}>
         <Text style={styles.name} numberOfLines={1}>{item.patientName}</Text>
         <Badge tone={status.tone}>{status.label}</Badge>
       </View>
-      <Text style={styles.when}>{when}</Text>
-      <Text style={styles.small}>Indian time</Text>
+      <View style={styles.bottom}>
+        <View>
+          <Text style={styles.when}>{when}</Text>
+          <Text style={styles.small}>Indian time</Text>
+        </View>
+        <Text style={styles.chevron}>›</Text>
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: { gap: 4, padding: 14, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted, backgroundColor: Colors.background },
-  pressed: { backgroundColor: Colors.primaryTint },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
   name: { flex: 1, fontWeight: '700', fontSize: 16, color: Colors.foreground },
   when: { fontWeight: '600', color: Colors.foreground },
   small: { fontSize: 12, color: Colors.mutedForeground },
+  pressed: { opacity: 0.7 },
+  bottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  chevron: { fontSize: 24, color: Colors.primary, fontWeight: '600' },
 });

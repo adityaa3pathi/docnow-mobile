@@ -1,16 +1,17 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AddPersonSheet } from '@/components/consult/add-person-sheet';
 import { BookingSummary } from '@/components/consult/booking-summary';
+import { FamilyIntakeSheet } from '@/components/consult/family-intake-sheet';
 import { PersonPicker } from '@/components/consult/person-picker';
 import { ErrorState, LoadingBlock } from '@/components/consult/states';
-import { ActionButton } from '@/components/doctor/ui';
-import { Colors, Radius, Space, Type } from '@/constants/theme';
+import { Colors, Radius } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
 import { consult, errorStatus, errorText, friendlyError, people as peopleApi, type Person } from '@/lib/consult/api';
 import { mapCreateError } from '@/lib/consult/bookingFlow';
+import { bookingExtras, intakeError, intakeFromPerson, intakePatch, isFamilyPerson, type IntakeDraft } from '@/lib/consult/family';
 import { formatRupees } from '@/lib/consult/format';
 import { sortPeople } from '@/lib/consult/people';
 import { forgetKey, keyFor, loadActiveBooking, saveActiveBooking } from '@/lib/consult/store';
@@ -30,8 +31,9 @@ export default function BookScreen() {
   const [attempt, setAttempt] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const creating = useRef(false);
   const [problem, setProblem] = useState<{ message: string; myLink?: boolean } | null>(null);
+  // One intake draft per family member picked, so switching people never loses what was typed.
+  const [intakes, setIntakes] = useState<Record<string, IntakeDraft>>({});
 
   const backToDoctor = useCallback(
     (notice: string) => {
@@ -82,15 +84,32 @@ export default function BookScreen() {
     };
   }, [userId, doctorId, slotId, backToDoctor, attempt]);
 
+  const person = people?.find((p) => p.id === personId) ?? null;
+  const forFamily = !!person && isFamilyPerson(person);
+  const intake = person ? (intakes[person.id] ?? intakeFromPerson(person)) : null;
+
   async function pay() {
-    // State updates land a frame later, so two quick taps both saw busy=false and made two bookings.
-    if (!slot || !personId || !userId || busy || creating.current) return;
-    creating.current = true;
+    if (!slot || !personId || !userId || busy) return;
+    const invalid = forFamily && intake ? intakeError(intake) : null;
+    if (invalid) {
+      setProblem({ message: invalid });
+      return;
+    }
     setBusy(true);
     setProblem(null);
     try {
+      // The intake lives on the person, so the next booking for them starts filled in.
+      if (forFamily && person && intake) {
+        const saved = await peopleApi.updateIntake(person.id, intakePatch(intake));
+        setPeople((cur) => (cur ? cur.map((p) => (p.id === saved.id ? { ...p, ...saved } : p)) : cur));
+      }
       const key = await keyFor(slot.id, personId);
-      const res = await consult.createBooking({ slotId: slot.id, patientId: personId, idempotencyKey: key });
+      const res = await consult.createBooking({
+        slotId: slot.id,
+        patientId: personId,
+        idempotencyKey: key,
+        ...(forFamily && intake ? bookingExtras(intake) : {}),
+      });
       await saveActiveBooking({ id: res.consultationId, slotId: slot.id, patientId: personId, userId });
       // Replace, so back never returns to this screen.
       router.replace({ pathname: '/consult/booking/[id]', params: { id: res.consultationId, pay: '1' } });
@@ -107,7 +126,6 @@ export default function BookScreen() {
       else if (action.kind === 'ended') setProblem({ message: 'That booking ended. Press Pay to start a fresh one.' });
       else setProblem({ message });
       setBusy(false);
-      creating.current = false;
     }
   }
 
@@ -130,24 +148,34 @@ export default function BookScreen() {
         <PersonPicker people={people} value={personId} onChange={setPersonId} onAdd={() => setAddOpen(true)} />
       </View>
 
+      {forFamily && person && intake ? (
+        <FamilyIntakeSheet
+          person={person}
+          value={intake}
+          onChange={(update) => setIntakes((cur) => ({ ...cur, [person.id]: update(cur[person.id] ?? intakeFromPerson(person)) }))}
+        />
+      ) : null}
+
       {problem ? (
         <View style={styles.problem} accessibilityRole="alert">
           <Text style={styles.problemText}>{problem.message}</Text>
           {problem.myLink ? (
-            <Pressable style={styles.problemLinkRow} onPress={() => router.push('/consult/my')} accessibilityRole="link" accessibilityLabel="Go to My consultations">
+            <Pressable onPress={() => router.push('/consult/my')} accessibilityRole="link" accessibilityLabel="Go to My consultations">
               <Text style={styles.problemLink}>Go to My consultations</Text>
             </Pressable>
           ) : null}
         </View>
       ) : null}
 
-      <ActionButton
-        label={`Pay ${fee}`}
-        busyLabel="Getting your payment ready"
-        busy={busy}
-        disabled={!personId}
+      <Pressable
+        style={[styles.button, (!personId || busy) && styles.disabled]}
+        disabled={!personId || busy}
         onPress={pay}
-      />
+        accessibilityRole="button"
+        accessibilityLabel={busy ? 'Getting your payment ready' : `Pay ${fee}`}
+        accessibilityState={{ disabled: !personId || busy, busy }}>
+        {busy ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.buttonText}>Pay {fee}</Text>}
+      </Pressable>
       <Text style={styles.note}>Your time is held for a few minutes while you pay.</Text>
 
       <AddPersonSheet
@@ -163,14 +191,16 @@ export default function BookScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.surface },
-  pad: { padding: Space[4] },
-  content: { padding: Space[4], gap: Space[4] },
-  h1: { ...Type.title, color: Colors.ink },
-  card: { padding: Space[4], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
-  problem: { gap: Space[1], padding: Space[3], borderRadius: Radius.md, backgroundColor: Colors.dangerSoft },
-  problemText: { ...Type.small, color: Colors.dangerInk },
-  problemLinkRow: { minHeight: 44, justifyContent: 'center' },
-  problemLink: { ...Type.bodyStrong, color: Colors.dangerInk, textDecorationLine: 'underline' },
-  note: { ...Type.small, textAlign: 'center', color: Colors.inkMuted },
+  flex: { flex: 1, backgroundColor: Colors.background },
+  pad: { padding: 16 },
+  content: { padding: 16, gap: 16 },
+  h1: { fontSize: 22, fontWeight: '700', color: Colors.foreground },
+  card: { padding: 16, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted },
+  problem: { gap: 6, padding: 14, borderRadius: Radius.lg, backgroundColor: '#fef2f2' },
+  problemText: { color: Colors.destructive, fontWeight: '600' },
+  problemLink: { color: Colors.destructive, fontWeight: '700', textDecorationLine: 'underline' },
+  button: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.primary },
+  buttonText: { color: Colors.primaryForeground, fontWeight: '700', fontSize: 16 },
+  disabled: { opacity: 0.5 },
+  note: { textAlign: 'center', fontSize: 12, color: Colors.mutedForeground },
 });

@@ -3,11 +3,9 @@ export type ConsultationStatus =
     | 'PENDING_PAYMENT' | 'CONFIRMED' | 'RESCHEDULED' | 'WAITING' | 'IN_PROGRESS' | 'COMPLETED'
     | 'CANCELLED' | 'NO_SHOW_PATIENT' | 'NO_SHOW_DOCTOR' | 'EXPIRED' | 'REFUNDED';
 
-export type DoctorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
-
 export type ConsultationType = 'VIDEO' | 'AUDIO' | 'CHAT';
 
-export type DoctorGender = 'Male' | 'Female' | 'Other';
+export type DoctorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
 export interface Specialty {
     id: string;
@@ -29,10 +27,9 @@ export interface DoctorSummary {
     consultationFee: number;
     slotMinutes: number;
     specialty: { id: string; name: string; slug: string };
-    /** Patients filter by this; null on older admin-created profiles. */
-    gender?: DoctorGender | null;
-    /** Earliest bookable time (list endpoint only); null when nothing is open. */
+    /** ISO timestamp of the next available slot, null if none. */
     nextSlotAt?: string | null;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER';
 }
 
 export interface DoctorPublicProfile extends DoctorSummary {
@@ -69,12 +66,89 @@ export interface BookingView extends CreateBookingResponse {
     underStaffCheck: boolean;
     refundPaise: number;
     refundStatus: 'PENDING' | 'PROCESSED' | 'FAILED' | null;
-    type: ConsultationType;
-    hasPrescription: boolean;
-    /** Booked by a family member for this user: they never pay, cancel or see a refund here. */
+    type?: ConsultationType;
+    hasPrescription?: boolean;
+    prescriptionId?: string | null;
+    rxStatus?: 'ISSUED' | 'DRAFTING' | 'PENDING' | 'NOT_REQUIRED';
+    // Waiting room (older servers leave these out).
+    doctorPhotoUrl?: string | null;
+    doctorQualification?: string;
+    /** The doctor has entered the video room for this consultation. */
+    doctorJoined?: boolean;
+    /** From here, a doctor who has not joined counts as late and the patient gets options. */
+    doctorLateAt?: string;
+    /** If the doctor still has not joined by here, the server refunds in full by itself. */
+    doctorNoShowAt?: string;
+    cancelReason?: string | null;
+    // Assisted family consultations.
+    /** The booker said they will co-join the call to assist. */
+    isCaregiverJoined?: boolean;
+    /** Booker's view of a family visit: the zero-login link to forward, and the family link state. */
+    guestToken?: string | null;
+    guestJoinUrl?: string | null;
+    familyPhone?: string | null;
+    familyLinked?: boolean;
+    /** The owner of the family phone said "this is not me": the number is probably wrong. */
+    familyDeclined?: boolean;
+    /** The signed-in user is the family member, not the booker. */
     isBookedForYou?: boolean;
     bookedBy?: { name: string; relation: string };
-    familyAccess?: 'linked' | 'pending';
+    /** Family member's view: `pending` until they accept (doctor and time only, nothing clinical). */
+    familyAccess?: 'pending' | 'linked';
+    /** Detail view only: uploaded outside records, with signed links that expire within the hour. */
+    attachments?: ConsultAttachment[];
+}
+
+/** A photo or PDF of an outside record (old prescription, discharge summary, other lab's report). */
+export interface ConsultAttachment {
+    id: string;
+    name: string;
+    mimeType: string;
+    sizeBytes: number;
+    uploadedAt: string;
+    /** Signed; expires within the hour. Re-read the consultation for a fresh one. */
+    url: string;
+}
+
+export interface CreateBookingInput {
+    slotId: string;
+    patientId: string;
+    idempotencyKey: string;
+    /** Family visits: the booker will co-join the call to assist. */
+    isCaregiverJoined?: boolean;
+    /** DocNow lab reports to share with the doctor (at most 5). */
+    attachedReportIds?: string[];
+    /** Photos / PDFs uploaded just before booking (POST /api/consult/attachments), at most 5. */
+    attachmentIds?: string[];
+}
+
+/** GET /api/consult/guest/:token — what the zero-login room shows before joining. */
+export interface GuestInfo {
+    status: ConsultationStatus;
+    type: ConsultationType;
+    startsAt: string;
+    endsAt: string;
+    opensAt: string;
+    window: 'early' | 'open';
+    doctorJoined: boolean;
+    patientFirstName: string;
+    language: 'hi' | 'en';
+    doctor: { name: string; photoUrl: string | null; qualification: string; specialty: string };
+}
+
+/** The next free doctor offered when the booked doctor is late. */
+export interface ReassignOption {
+    slot: { id: string; startsAt: string; endsAt: string };
+    doctor: {
+        id: string;
+        displayName: string;
+        photoUrl: string | null;
+        qualification: string;
+        experienceYears: number;
+        languages: string[];
+        consultationFee: number;
+        specialty: string;
+    };
 }
 
 export type VerifyOutcome = 'confirmed' | 'reclaimed' | 'already' | 'refund_created' | 'flagged' | 'unknown_order';
@@ -104,6 +178,8 @@ export interface AvailabilityWindow {
     endMinute: number;
 }
 
+export type DoctorGender = 'MALE' | 'FEMALE' | 'OTHER';
+
 export interface DoctorProfileInput {
     displayName: string;
     specialtyId: string;
@@ -112,10 +188,9 @@ export interface DoctorProfileInput {
     registrationCouncil: string;
     experienceYears: number;
     languages: string[];
-    /** Required on register and resubmit; patients filter doctors by it. */
-    gender: DoctorGender;
     bio?: string;
     photoUrl?: string;
+    gender?: DoctorGender;
 }
 
 export interface DoctorConsultation {
@@ -123,118 +198,13 @@ export interface DoctorConsultation {
     startsAt: string;
     endsAt: string;
     status: ConsultationStatus;
-    type: ConsultationType;
+    type: 'VIDEO' | 'AUDIO' | 'CHAT';
     patientName: string;
 }
 
 export interface DoctorConsultationPage {
     items: DoctorConsultation[];
     nextCursor: string | null;
-}
-
-// ── Video room and prescriptions ────────────────────────
-
-export interface JoinResponse {
-    /** LiveKit server URL (wss). */
-    url: string;
-    roomId: string;
-    /** `doctor`, `patient`, or an `-audio` variant that may only publish the microphone. */
-    role: string;
-    /** LiveKit access token for this person and room; it carries their display name. */
-    token: string;
-}
-
-export interface Medicine {
-    name: string;
-    dose: string;
-    frequency: string;
-    duration: string;
-    instructions: string;
-}
-
-export interface RecommendedTest {
-    code: string;
-    name: string;
-}
-
-export interface Prescription {
-    id: string;
-    consultationId: string;
-    /** Starts at 1; a correction voids the current version and issues the next. */
-    version: number;
-    medicines: Medicine[];
-    recommendedTests: RecommendedTest[];
-    advice: string | null;
-    doctorSnapshot: { displayName: string; qualification: string; registrationNumber: string; registrationCouncil: string; specialty: string };
-    patientSnapshot: { name: string; age: number; gender: string };
-    issuedAt: string;
-}
-
-export interface PrescriptionInput {
-    medicines: Medicine[];
-    testCodes: string[];
-    advice?: string;
-}
-
-export interface ConsultNote {
-    complaints: string | null;
-    findings: string | null;
-    diagnosis: string | null;
-    advice: string | null;
-    followUpDays: number | null;
-    updatedAt: string;
-}
-
-export interface NoteInput {
-    complaints?: string;
-    findings?: string;
-    diagnosis?: string;
-    advice?: string;
-    followUpDays?: number | null;
-}
-
-export interface CartAddResult {
-    added: string[];
-    skipped: { code: string; reason: string }[];
-}
-
-export interface DoctorConsultationRecord {
-    id: string;
-    status: ConsultationStatus;
-    type: ConsultationType;
-    startsAt: string;
-    slot: { endsAt: string };
-    patient: {
-        name: string;
-        age: number;
-        gender: string;
-        relation: string;
-        preferredLanguage: string;
-        bloodGroup: string | null;
-        allergies: string[];
-        chronicConditions: string[];
-        currentMedications: string[];
-    };
-    /** Family bookings: who booked and whether they join to assist. */
-    caregiver: { name: string; relation: string; coJoining: boolean; joinedAt: string | null } | null;
-    /** DocNow lab reports the booker shared; each opens through a signed link. */
-    attachedReports: { id: string; label: string; isFullReport: boolean; date: string | null; viewToken: string }[];
-    /** Photos and PDFs the booker uploaded, as signed links valid for an hour. */
-    attachments: { id: string; name: string; mimeType: string; sizeBytes: number; uploadedAt: string; url: string }[];
-    patientJoinedAt: string | null;
-    doctorJoinedAt: string | null;
-    note: ConsultNote | null;
-    /** The current version only; voided ones are in previousVersions. */
-    prescription: Prescription | null;
-    previousVersions: PrescriptionVersion[];
-}
-
-export interface PrescriptionVersion {
-    id: string;
-    version: number;
-    issuedAt: string;
-    voidedAt: string;
-    voidReason: string | null;
 }
 
 export interface DoctorMe extends DoctorSummary {
@@ -311,3 +281,119 @@ export interface ReviewQueue {
     flaggedPayments: FlaggedPayment[];
     refundsNeedingStaff: RefundNeedingStaff[];
 }
+
+// ── Video room and prescriptions ────────────────────────
+
+export interface JoinResponse {
+    /** LiveKit server URL (wss). */
+    url: string;
+    roomId: string;
+    /** `doctor`, `patient`, or an `-audio` variant that may only publish the microphone. */
+    role: string;
+    /** LiveKit access token for this person and room; it carries their display name. */
+    token: string;
+    /** Room identity: `doctor:<id>`, `patient:<id>` or `caretaker:<userId>`. */
+    identity?: string;
+}
+
+export interface Medicine {
+    name: string;
+    dose: string;
+    frequency: string;
+    duration: string;
+    instructions: string;
+}
+
+export interface RecommendedTest {
+    code: string;
+    name: string;
+}
+
+export interface Prescription {
+    id: string;
+    consultationId: string;
+    /** Starts at 1; a correction voids the current version and issues the next. */
+    version: number;
+    medicines: Medicine[];
+    recommendedTests: RecommendedTest[];
+    advice: string | null;
+    doctorSnapshot: { displayName: string; qualification: string; registrationNumber: string; registrationCouncil: string; specialty: string };
+    patientSnapshot: { name: string; age: number; gender: string };
+    issuedAt: string;
+}
+
+export interface PrescriptionInput {
+    medicines: Medicine[];
+    testCodes: string[];
+    advice?: string;
+}
+
+export interface ConsultNote {
+    complaints: string | null;
+    findings: string | null;
+    diagnosis: string | null;
+    advice: string | null;
+    followUpDays: number | null;
+    updatedAt: string;
+}
+
+export interface NoteInput {
+    complaints?: string;
+    findings?: string;
+    diagnosis?: string;
+    advice?: string;
+    followUpDays?: number | null;
+}
+
+export interface CartAddResult {
+    added: string[];
+    skipped: { code: string; reason: string }[];
+    /** Where the tests will most likely be collected (patient's last address); checkout pre-selects it. */
+    suggestedAddressId?: string | null;
+}
+
+export interface PrescriptionVersion {
+    id: string;
+    version: number;
+    issuedAt: string;
+    voidedAt: string;
+    voidReason: string | null;
+}
+
+
+/** GET /api/doctor/me/consultations/:id — the doctor's own view of one consultation. */
+export interface DoctorConsultationRecord {
+    id: string;
+    status: ConsultationStatus;
+    type: ConsultationType;
+    startsAt: string;
+    patientJoinedAt: string | null;
+    doctorJoinedAt: string | null;
+    slot: { endsAt: string };
+    patient: {
+        name: string;
+        age: number;
+        gender: string;
+        relation?: string;
+        preferredLanguage?: string;
+        bloodGroup?: string | null;
+        allergies?: string[];
+        chronicConditions?: string[];
+        currentMedications?: string[];
+    };
+    /** Family bookings: who booked and whether they co-join to assist. */
+    caregiver?: { name: string; relation: string; coJoining: boolean; joinedAt: string | null } | null;
+    /** Lab reports shared for this consultation; `viewToken` opens /api/reports/public/:token. */
+    attachedReports?: { id: string; label: string; isFullReport: boolean; date: string; viewToken: string }[];
+    /** Photos / PDFs of outside records the booker uploaded (signed links, about an hour). */
+    attachments?: ConsultAttachment[];
+    note: ConsultNote | null;
+    /** The current (unvoided) version, if one has been issued. */
+    prescription: Prescription | null;
+    previousVersions: PrescriptionVersion[];
+}
+
+/** Events on the room's `consult-events` data topic. The server sends these too; receivers dedupe. */
+export type ConsultRoomEvent =
+    | { v: 1; type: 'PRESCRIPTION_DRAFTING'; consultationId: string }
+    | { v: 1; type: 'PRESCRIPTION_ISSUED'; consultationId: string; prescriptionId: string };
