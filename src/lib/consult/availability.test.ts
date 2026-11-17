@@ -41,12 +41,28 @@ describe('leave', () => {
         expect(istLocalToIso('2026-10-07T02:00')).toBe('2026-10-06T20:30:00.000Z');
         expect(isoToIstLocal('2026-10-06T20:30:00.000Z')).toBe('2026-10-07T02:00');
     });
+    // Noon IST on 2026-10-07, so the fixtures around it are fixed in time.
+    const NOW = Date.parse('2026-10-07T06:30:00.000Z');
+
     it('refuses an end before the start', () => {
-        expect(validateLeave('2026-10-07T10:00', '2026-10-07T09:00')).toHaveProperty('error');
-        expect(validateLeave('2026-10-07T10:00', '')).toHaveProperty('error');
-        expect(validateLeave('2026-10-07T09:00', '2026-10-07T10:00')).toEqual({
+        expect(validateLeave('2026-10-07T10:00', '2026-10-07T09:00', NOW)).toHaveProperty('error');
+        expect(validateLeave('2026-10-07T10:00', '', NOW)).toHaveProperty('error');
+        expect(validateLeave('2026-10-07T09:00', '2026-10-07T10:00', Date.parse('2026-10-07T00:00:00.000Z'))).toEqual({
             startsAt: '2026-10-07T03:30:00.000Z',
             endsAt: '2026-10-07T04:30:00.000Z',
+        });
+    });
+    it('refuses a range that has already finished', () => {
+        expect(validateLeave('2026-10-05T09:00', '2026-10-05T17:00', NOW)).toEqual({
+            error: 'That leave has already finished. Pick an end time in the future.',
+        });
+        // The end exactly at now is already gone from GET /me/leave, which filters on endsAt > now.
+        expect(validateLeave('2026-10-07T10:00', '2026-10-07T12:00', NOW)).toHaveProperty('error');
+    });
+    it('allows a range that started in the past but has not finished', () => {
+        expect(validateLeave('2026-10-07T09:00', '2026-10-07T18:00', NOW)).toEqual({
+            startsAt: '2026-10-07T03:30:00.000Z',
+            endsAt: '2026-10-07T12:30:00.000Z',
         });
     });
 });

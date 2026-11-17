@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { ActionButton, Notice } from '@/components/doctor/ui';
+import { Colors, Radius, Shadow, Space, Type } from '@/constants/theme';
 import { consult, friendlyError } from '@/lib/consult/api';
 import { formatPaise } from '@/lib/consult/format';
 import type { CancelPreview, CancelResult } from '@/lib/consult/types';
@@ -89,9 +90,7 @@ export function CancelSheet({ visible, bookingId, unpaid, onClose, onCancelled }
               {result.refundPaise > 0 && result.refundStatus ? (
                 <Text style={styles.body} accessibilityLiveRegion="polite">{REFUND_STATE[result.refundStatus]}</Text>
               ) : null}
-              <Pressable style={styles.primary} onPress={close} accessibilityRole="button" accessibilityLabel="Done">
-                <Text style={styles.primaryText}>Done</Text>
-              </Pressable>
+              <ActionButton label="Done" onPress={close} />
             </>
           ) : (
             <>
@@ -105,7 +104,7 @@ export function CancelSheet({ visible, bookingId, unpaid, onClose, onCancelled }
                     </Text>
                   ) : null}
                   {!preview && !previewError ? <Text style={styles.body}>Checking your refund...</Text> : null}
-                  {previewError ? <Text style={styles.error}>{previewError}</Text> : null}
+                  {previewError ? <Text style={styles.errorText}>{previewError}</Text> : null}
                 </View>
               ) : null}
               <Text style={styles.label}>Reason (optional)</Text>
@@ -117,10 +116,8 @@ export function CancelSheet({ visible, bookingId, unpaid, onClose, onCancelled }
                 multiline
                 accessibilityLabel="Reason for cancelling, optional"
               />
-              {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
-              <Pressable style={[styles.danger, busy && styles.disabled]} disabled={busy} onPress={confirm} accessibilityRole="button" accessibilityLabel="Cancel booking">
-                {busy ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.primaryText}>Cancel booking</Text>}
-              </Pressable>
+              {error ? <Notice tone="error">{error}</Notice> : null}
+              <ActionButton label="Cancel booking" busyLabel="Cancelling..." variant="danger" busy={busy} onPress={confirm} />
               <Pressable style={styles.secondary} disabled={busy} onPress={close} accessibilityRole="button" accessibilityLabel="Keep booking">
                 <Text style={styles.secondaryText}>Keep booking</Text>
               </Pressable>
@@ -133,18 +130,14 @@ export function CancelSheet({ visible, bookingId, unpaid, onClose, onCancelled }
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { gap: 10, padding: 20, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, backgroundColor: Colors.background },
-  title: { fontSize: 18, fontWeight: '700', color: Colors.foreground },
-  body: { color: Colors.foreground },
-  label: { fontWeight: '600', color: Colors.foreground },
-  preview: { padding: 12, borderRadius: Radius.lg, backgroundColor: Colors.primaryTint },
-  input: { minHeight: 80, padding: 12, borderWidth: 1, borderColor: Colors.muted, borderRadius: Radius.lg, fontSize: 16, color: Colors.foreground, textAlignVertical: 'top' },
-  error: { color: Colors.destructive, fontWeight: '600' },
-  primary: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.primary },
-  primaryText: { color: Colors.primaryForeground, fontWeight: '700' },
-  danger: { alignItems: 'center', padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.destructive },
-  secondary: { alignItems: 'center', padding: 14 },
-  secondaryText: { color: Colors.primary, fontWeight: '700' },
-  disabled: { opacity: 0.6 },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(31,26,43,0.4)' },
+  sheet: { gap: Space[3], padding: Space[6], borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, backgroundColor: Colors.surface, ...Shadow.raised },
+  title: { ...Type.titleSm, color: Colors.ink },
+  body: { ...Type.body, color: Colors.ink },
+  label: { ...Type.bodyStrong, color: Colors.ink },
+  preview: { padding: Space[3], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surfaceSubtle },
+  input: { ...Type.body, minHeight: 80, padding: Space[3], borderWidth: 1, borderColor: Colors.borderStrong, borderRadius: Radius.md, color: Colors.ink, textAlignVertical: 'top' },
+  errorText: { ...Type.small, color: Colors.dangerInk },
+  secondary: { alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  secondaryText: { ...Type.bodyStrong, color: Colors.ink },
 });

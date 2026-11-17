@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BookingCard } from '@/components/consult/booking-card';
 import { EmptyState, ErrorState, LoadingBlock } from '@/components/consult/states';
-import { Colors } from '@/constants/theme';
+import { ActionButton } from '@/components/doctor/ui';
+import { Colors, Space, Type } from '@/constants/theme';
 import { consult, friendlyError } from '@/lib/consult/api';
 import { groupBookings } from '@/lib/consult/bookingFlow';
 import { serverNow } from '@/lib/consult/time';
@@ -42,11 +43,7 @@ export default function MyConsultations() {
         <EmptyState
           title="No consultations yet"
           body="When you book a doctor, it will show up here."
-          action={
-            <Pressable onPress={() => router.replace('/')} accessibilityRole="button" accessibilityLabel="Find a doctor">
-              <Text style={styles.link}>Find a doctor</Text>
-            </Pressable>
-          }
+          action={<ActionButton label="Find a doctor" onPress={() => router.replace('/')} />}
         />
       </View>
     );
@@ -65,10 +62,9 @@ export default function MyConsultations() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.background },
-  pad: { padding: 16 },
-  content: { padding: 16, gap: 8 },
-  group: { gap: 10, marginTop: 8 },
-  groupTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: Colors.mutedForeground },
-  link: { color: Colors.primary, fontWeight: '700' },
+  flex: { flex: 1, backgroundColor: Colors.surface },
+  pad: { padding: Space[4] },
+  content: { padding: Space[4], gap: Space[2] },
+  group: { gap: Space[3], marginTop: Space[2] },
+  groupTitle: { ...Type.bodyStrong, color: Colors.inkMuted },
 });

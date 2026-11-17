@@ -27,6 +27,9 @@ export interface DoctorSummary {
     consultationFee: number;
     slotMinutes: number;
     specialty: { id: string; name: string; slug: string };
+    /** ISO timestamp of the next available slot, null if none. */
+    nextSlotAt?: string | null;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER';
 }
 
 export interface DoctorPublicProfile extends DoctorSummary {
@@ -175,6 +178,8 @@ export interface AvailabilityWindow {
     endMinute: number;
 }
 
+export type DoctorGender = 'MALE' | 'FEMALE' | 'OTHER';
+
 export interface DoctorProfileInput {
     displayName: string;
     specialtyId: string;
@@ -185,6 +190,7 @@ export interface DoctorProfileInput {
     languages: string[];
     bio?: string;
     photoUrl?: string;
+    gender?: DoctorGender;
 }
 
 export interface DoctorConsultation {

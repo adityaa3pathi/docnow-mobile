@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { doctorScreen } from './doctorStatus';
-import { emptyDoctorForm, splitLanguages, validateDoctorForm, type DoctorFormValues } from './doctorForm';
+import { DOCTOR_GENDERS, emptyDoctorForm, splitLanguages, validateDoctorForm, type DoctorFormValues } from './doctorForm';
 import { conflictMessage } from './leaveText';
 import { istLocalToIso, validateLeave } from './availability';
 import { localToPicker, pickerToLocal, pickerToTime, timeToPicker } from './pickerTime';
@@ -8,7 +8,7 @@ import type { DoctorMe } from './types';
 
 const valid: DoctorFormValues = {
   displayName: ' Dr Asha Rao ', specialtyId: 'sp1', qualification: 'MBBS', registrationNumber: 'MCI-123',
-  registrationCouncil: 'Delhi Medical Council', experienceYears: '12', languages: 'English, Hindi, english, ',
+  registrationCouncil: 'Delhi Medical Council', gender: 'Female', experienceYears: '12', languages: 'English, Hindi, english, ',
   bio: '  Hello  ', photoUrl: '',
 };
 const errorsOf = (patch: Partial<DoctorFormValues>) => {
@@ -22,7 +22,7 @@ describe('application form', () => {
     expect(r).toEqual({
       input: {
         displayName: 'Dr Asha Rao', specialtyId: 'sp1', qualification: 'MBBS', registrationNumber: 'MCI-123',
-        registrationCouncil: 'Delhi Medical Council', experienceYears: 12, languages: ['English', 'Hindi'], bio: 'Hello',
+        registrationCouncil: 'Delhi Medical Council', gender: 'Female', experienceYears: 12, languages: ['English', 'Hindi'], bio: 'Hello',
       },
     });
   });
@@ -32,6 +32,8 @@ describe('application form', () => {
     expect(errorsOf({ qualification: 'M' }).qualification).toBe('Enter your qualification.');
     expect(errorsOf({ registrationNumber: 'ab' }).registrationNumber).toBe('Enter your registration number.');
     expect(errorsOf({ registrationCouncil: 'x' }).registrationCouncil).toBe('Enter your registration council.');
+    for (const bad of ['', 'female', 'Nope']) expect(errorsOf({ gender: bad }).gender).toBe('Choose your gender.');
+    for (const ok of DOCTOR_GENDERS) expect(errorsOf({ gender: ok }).gender).toBeUndefined();
     for (const bad of ['71', '-1', '1.5', 'abc', '']) expect(errorsOf({ experienceYears: bad }).experienceYears).toBe('Enter whole years, 0 to 70.');
     expect(errorsOf({ experienceYears: '0' }).experienceYears).toBeUndefined();
     expect(errorsOf({ experienceYears: '70' }).experienceYears).toBeUndefined();
@@ -48,6 +50,7 @@ describe('application form', () => {
   });
   it('starts blank and splits languages', () => {
     expect(emptyDoctorForm().experienceYears).toBe('0');
+    expect(emptyDoctorForm().gender).toBe('');
     expect(splitLanguages('a, ,b')).toEqual(['a', 'b']);
   });
 });
@@ -61,6 +64,10 @@ describe('doctor screen', () => {
     expect(doctorScreen(me('REJECTED'))).toBe('rejected');
     expect(doctorScreen(me('SUSPENDED'))).toBe('suspended');
     expect(doctorScreen(me('APPROVED'))).toBe('home');
+  });
+  it('keeps a status this build does not know out of the approved area', () => {
+    expect(doctorScreen(me('BANNED' as DoctorMe['status']))).toBe('pending');
+    expect(doctorScreen({ status: undefined } as unknown as DoctorMe)).toBe('pending');
   });
 });
 
@@ -93,12 +100,17 @@ describe('picker time under other time zones', () => {
 });
 
 describe('leave', () => {
+  const NOW = Date.parse('2026-10-07T06:30:00.000Z');
+
   it('refuses a range that ends at or before its start', () => {
-    expect(validateLeave('2026-10-07T10:00', '2026-10-07T10:00')).toEqual({ error: 'The end must be after the start.' });
-    expect(validateLeave('2026-10-07T10:00', '2026-10-07T09:00')).toHaveProperty('error');
+    expect(validateLeave('2026-10-07T10:00', '2026-10-07T10:00', NOW)).toEqual({ error: 'The end must be after the start.' });
+    expect(validateLeave('2026-10-07T10:00', '2026-10-07T09:00', NOW)).toHaveProperty('error');
   });
-  it('does not refuse a start in the past', () => {
-    expect(validateLeave('2020-01-01T10:00', '2020-01-01T11:00')).toHaveProperty('startsAt');
+  it('does not refuse a start in the past while the end is still ahead', () => {
+    expect(validateLeave('2020-01-01T10:00', '2026-10-08T11:00', NOW)).toHaveProperty('startsAt');
+  });
+  it('refuses leave that is entirely in the past', () => {
+    expect(validateLeave('2020-01-01T10:00', '2020-01-01T11:00', NOW)).toHaveProperty('error');
   });
   it('words the booked conflicts note', () => {
     expect(conflictMessage(0)).toMatch(/No patients were booked/);

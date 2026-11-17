@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { Colors, Radius, Type } from '@/constants/theme';
 
 export function LoadingBlock({ label = 'Loading' }: { label?: string }) {
   return (
@@ -37,11 +37,11 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 
 const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', gap: 8, padding: 32 },
-  empty: { alignItems: 'center', gap: 8, padding: 28, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.muted, borderStyle: 'dashed' },
-  title: { fontSize: 16, fontWeight: '700', color: Colors.foreground, textAlign: 'center' },
-  muted: { color: Colors.mutedForeground, textAlign: 'center' },
-  error: { alignItems: 'center', gap: 12, padding: 24, borderRadius: Radius.xl, backgroundColor: '#fef2f2' },
-  errorText: { color: Colors.destructive, fontWeight: '600', textAlign: 'center' },
-  retry: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: Radius.lg, backgroundColor: Colors.primaryTint },
-  retryText: { color: Colors.primary, fontWeight: '700' },
+  empty: { alignItems: 'center', gap: 8, padding: 24, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed', backgroundColor: Colors.surface },
+  title: { ...Type.bodyStrong, color: Colors.ink, textAlign: 'center' },
+  muted: { ...Type.small, color: Colors.inkMuted, textAlign: 'center' },
+  error: { alignItems: 'center', gap: 12, padding: 24, borderRadius: Radius.lg, backgroundColor: Colors.dangerSoft },
+  errorText: { ...Type.bodyStrong, color: Colors.dangerInk, textAlign: 'center' },
+  retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 16, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong, backgroundColor: Colors.surface },
+  retryText: { ...Type.bodyStrong, color: Colors.ink },
 });

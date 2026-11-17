@@ -14,7 +14,7 @@ function booking(over: Partial<BookingView> = {}): BookingView {
         consultationId: 'c1', status: 'PENDING_PAYMENT', razorpayOrderId: 'order_1', amountPaise: 49900, currency: 'INR',
         keyId: 'rzp_test', holdExpiresAt: iso(10 * 60_000), startsAt: iso(86_400_000), endsAt: iso(86_400_000 + 1_800_000),
         doctorId: 'd1', doctorName: 'Dr A', specialty: 'General', patientId: 'p1', patientName: 'Asha',
-        paymentCaptured: false, underStaffCheck: false, refundPaise: 0, refundStatus: null, ...over,
+        paymentCaptured: false, underStaffCheck: false, refundPaise: 0, refundStatus: null, type: 'VIDEO', hasPrescription: false, ...over,
     };
 }
 const ctx = (nowMs = NOW, confirmStartedAt: number | null = null) => ({ nowMs, confirmStartedAt });
@@ -213,4 +213,15 @@ describe('resumeAction', () => {
         expect(resumeAction(saved, 'u2', booking({ status: 'CONFIRMED' }), NOW)).toBe('keep');
         expect(resumeAction(saved, 'u2', booking(), NOW)).toBe('keep');
     });
+});
+
+describe('recentCheckout', () => {
+  it('keeps a payment opened in the last 10 minutes from looking like a fresh start', async () => {
+    const { recentCheckout, RECENT_CHECKOUT_MS } = await import('./bookingFlow');
+    const t = 1_000_000;
+    expect(recentCheckout(null, t)).toBe(false);
+    expect(recentCheckout(t, t + 30_000)).toBe(true);
+    expect(recentCheckout(t, t + RECENT_CHECKOUT_MS - 1)).toBe(true);
+    expect(recentCheckout(t, t + RECENT_CHECKOUT_MS)).toBe(false);
+  });
 });

@@ -1,9 +1,12 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 
 import { Badge } from '@/components/consult/badge';
+import { DoctorPhotoUpload } from '@/components/doctor/photo-upload';
 import { ActionButton, Card, Notice } from '@/components/doctor/ui';
 import { Colors } from '@/constants/theme';
+import { DOCTOR_ME_KEY } from '@/hooks/use-doctor-me';
 import { doctorStatusInfo } from '@/lib/consult/status';
 import type { DoctorMe } from '@/lib/consult/types';
 
@@ -29,8 +32,20 @@ function useCheck(onCheck: Props['onCheck'], same: string) {
 export function PendingScreen({ doctor, onCheck }: Props) {
   const info = doctorStatusInfo('PENDING');
   const check = useCheck(onCheck, 'Checked just now. Your application is still waiting for review.');
+  const queryClient = useQueryClient();
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
+      {!doctor.photoUrl ? (
+        <Card>
+          <Text style={styles.title} accessibilityRole="header">Add your photo</Text>
+          <Text style={styles.body}>We can approve you only once your photo is added.</Text>
+          <DoctorPhotoUpload
+            name={doctor.displayName}
+            photoUrl={doctor.photoUrl}
+            onUploaded={(photoUrl) => queryClient.setQueryData(DOCTOR_ME_KEY, { ...doctor, photoUrl })}
+          />
+        </Card>
+      ) : null}
       <Card>
         <Badge tone={info.tone}>{info.label}</Badge>
         <Text style={styles.title} accessibilityRole="header">Thanks, {doctor.displayName}</Text>

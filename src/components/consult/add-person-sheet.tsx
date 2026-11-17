@@ -1,34 +1,38 @@
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { ActionButton, Notice } from '@/components/doctor/ui';
+import { Colors, Radius, Shadow, Space, Type } from '@/constants/theme';
 import { friendlyError, people, type Person } from '@/lib/consult/api';
 import { GENDERS, RELATIONS, validatePerson } from '@/lib/consult/people';
 
 interface Props {
   visible: boolean;
+  /** Set to change a saved family member instead of adding a new one. */
+  person?: Person | null;
   onClose: () => void;
   onAdded: (person: Person) => void;
 }
 
-export function AddPersonSheet({ visible, onClose, onAdded }: Props) {
-  const [name, setName] = useState('');
-  const [relation, setRelation] = useState('');
-  const [age, setAge] = useState('');
-  const [gender, setGender] = useState<string>('Male');
+/** Mounted only while open and keyed on the person, so every visit starts from the saved values. */
+export function AddPersonSheet({ visible, person, onClose, onAdded }: Props) {
+  if (!visible) return null;
+  return <PersonForm key={person?.id ?? 'new'} person={person ?? null} onClose={onClose} onAdded={onAdded} />;
+}
+
+function PersonForm({ person, onClose, onAdded }: Omit<Props, 'visible'> & { person: Person | null }) {
+  const [name, setName] = useState(person?.name ?? '');
+  const [relation, setRelation] = useState(person?.relation ?? '');
+  const [age, setAge] = useState(person?.age ? String(person.age) : '');
+  const [gender, setGender] = useState<string>(person?.gender ?? 'Male');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const editing = Boolean(person);
+  // Self is the account holder, whose own name, age and sex live in Edit profile.
+  const lockRelation = person?.relation?.toLowerCase() === 'self';
 
-  const reset = () => {
-    setName('');
-    setRelation('');
-    setAge('');
-    setGender('Male');
-    setError('');
-  };
   const close = () => {
     if (saving) return;
-    reset();
     onClose();
   };
 
@@ -42,41 +46,45 @@ export function AddPersonSheet({ visible, onClose, onAdded }: Props) {
     setSaving(true);
     setError('');
     try {
-      const person = await people.add(input);
-      reset();
-      onAdded(person);
+      const saved = person ? await people.update(person.id, input) : await people.add(input);
+      onAdded(saved);
       onClose();
     } catch (e) {
-      setError(friendlyError(e, 'Could not add this person. Please try again.'));
+      setError(friendlyError(e, 'Could not save this person. Please try again.'));
     } finally {
       setSaving(false);
     }
   }
 
-  const choice = (label: string, active: boolean, onPress: () => void) => (
+  const choice = (label: string, active: boolean, onPress: () => void, disabled = false) => (
     <Pressable
       key={label}
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="radio"
       accessibilityLabel={label}
-      accessibilityState={{ checked: active }}
-      style={[styles.chip, active && styles.chipOn]}>
+      accessibilityState={{ checked: active, disabled }}
+      style={[styles.chip, active && styles.chipOn, disabled && styles.chipOff]}>
       <Text style={[styles.chipText, active && styles.chipTextOn]}>{label}</Text>
     </Pressable>
   );
 
+  const relations = lockRelation && person ? [person.relation] : [...RELATIONS];
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
+    <Modal visible animationType="slide" transparent onRequestClose={close}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.backdrop}>
         <View style={styles.sheet}>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-            <Text style={styles.title} accessibilityRole="header">Add a person</Text>
+            <Text style={styles.title} accessibilityRole="header">{editing ? 'Edit this person' : 'Add a person'}</Text>
 
             <Text style={styles.label}>Name</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Enter name" accessibilityLabel="Name" />
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Enter name" placeholderTextColor={Colors.inkSubtle} accessibilityLabel="Name" />
 
             <Text style={styles.label}>Relation</Text>
-            <View style={styles.wrap}>{RELATIONS.map((r) => choice(r, relation === r, () => setRelation(r)))}</View>
+            <View style={styles.wrap} accessibilityRole="radiogroup">
+              {relations.map((r) => choice(r, relation === r, () => setRelation(r), lockRelation))}
+            </View>
 
             <Text style={styles.label}>Age</Text>
             <TextInput
@@ -86,20 +94,26 @@ export function AddPersonSheet({ visible, onClose, onAdded }: Props) {
               keyboardType="number-pad"
               maxLength={3}
               placeholder="Age in years"
+              placeholderTextColor={Colors.inkSubtle}
               accessibilityLabel="Age"
             />
 
             <Text style={styles.label}>Sex</Text>
-            <View style={styles.wrap}>{GENDERS.map((g) => choice(g, gender === g, () => setGender(g)))}</View>
+            <View style={styles.wrap} accessibilityRole="radiogroup">{GENDERS.map((g) => choice(g, gender === g, () => setGender(g)))}</View>
 
-            {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+            {error ? <Notice tone="error">{error}</Notice> : null}
 
-            <Pressable style={[styles.primary, saving && styles.disabled]} disabled={saving} onPress={save} accessibilityRole="button" accessibilityLabel="Add person">
-              {saving ? <ActivityIndicator color={Colors.primaryForeground} /> : <Text style={styles.primaryText}>Add person</Text>}
-            </Pressable>
-            <Pressable style={styles.secondary} onPress={close} disabled={saving} accessibilityRole="button" accessibilityLabel="Cancel">
-              <Text style={styles.secondaryText}>Cancel</Text>
-            </Pressable>
+            <View style={styles.actions}>
+              <ActionButton
+                label={editing ? 'Save changes' : 'Add person'}
+                busyLabel="Saving..."
+                busy={saving}
+                onPress={save}
+              />
+              <Pressable style={styles.secondary} onPress={close} disabled={saving} accessibilityRole="button" accessibilityLabel="Cancel">
+                <Text style={styles.secondaryText}>Cancel</Text>
+              </Pressable>
+            </View>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -107,22 +121,21 @@ export function AddPersonSheet({ visible, onClose, onAdded }: Props) {
   );
 }
 
+// Sheets: radius 16 and the one raised shadow; inputs and chips are 44 high with radius 8.
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { maxHeight: '90%', borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, backgroundColor: Colors.background },
-  content: { padding: 20, gap: 8 },
-  title: { fontSize: 18, fontWeight: '700', color: Colors.foreground, marginBottom: 4 },
-  label: { marginTop: 8, fontWeight: '600', color: Colors.foreground },
-  input: { borderWidth: 1, borderColor: Colors.muted, borderRadius: Radius.lg, padding: 12, fontSize: 16, color: Colors.foreground },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.muted },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(31,26,43,0.4)' },
+  sheet: { maxHeight: '90%', borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, backgroundColor: Colors.surface, ...Shadow.raised },
+  content: { padding: Space[6], gap: Space[2] },
+  title: { ...Type.titleSm, color: Colors.ink, marginBottom: Space[1] },
+  label: { ...Type.bodyStrong, marginTop: Space[2], color: Colors.ink },
+  input: { ...Type.body, minHeight: 44, borderWidth: 1, borderColor: Colors.borderStrong, borderRadius: Radius.md, paddingHorizontal: Space[3], paddingVertical: Space[2], color: Colors.ink },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Space[2] },
+  chip: { justifyContent: 'center', minHeight: 44, paddingHorizontal: Space[4], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong },
   chipOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.foreground, fontWeight: '600' },
-  chipTextOn: { color: Colors.primaryForeground },
-  error: { marginTop: 8, padding: 10, borderRadius: Radius.md, backgroundColor: '#fef2f2', color: Colors.destructive, fontWeight: '600' },
-  primary: { marginTop: 14, alignItems: 'center', padding: 16, borderRadius: Radius.xl, backgroundColor: Colors.primary },
-  primaryText: { color: Colors.primaryForeground, fontWeight: '700' },
-  secondary: { alignItems: 'center', padding: 14 },
-  secondaryText: { color: Colors.primary, fontWeight: '700' },
-  disabled: { opacity: 0.6 },
+  chipOff: { opacity: 0.6 },
+  chipText: { ...Type.bodyStrong, color: Colors.ink },
+  chipTextOn: { color: Colors.onPrimary },
+  actions: { gap: Space[2], marginTop: Space[4] },
+  secondary: { alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  secondaryText: { ...Type.bodyStrong, color: Colors.ink },
 });

@@ -17,6 +17,10 @@ export const GUEST_CONSENT_TEXT =
 export const CONSENT_REQUIRED_HINT = 'Please accept teleconsultation consent to join';
 export const GUEST_CONSENT_REQUIRED_HINT = 'कॉल शुरू करने के लिए ऊपर सहमति दें / Please accept teleconsultation consent to join';
 
+/** Ticked once at sign-up; covers the account holder's own consultations (same version as the join text). */
+export const SIGNUP_CONSENT_TEXT =
+  'I consent to online telemedicine consultations with registered doctors on DocNow, in accordance with the National Medical Commission (NMC) Telemedicine Practice Guidelines.';
+
 export const ABOUT_TELEMEDICINE = {
   en: {
     title: 'About telemedicine consultations',

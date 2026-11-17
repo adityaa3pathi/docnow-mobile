@@ -1,5 +1,6 @@
 // Copied from docnowtesting/client/src/lib/consult/status.ts
 import type { ConsultationStatus, DoctorStatus, VerifyOutcome } from './types';
+import { Tokens } from '@/constants/tokens';
 
 export type Tone = 'success' | 'warning' | 'danger' | 'info' | 'muted';
 
@@ -48,10 +49,11 @@ export const HOLD_ENDED_MESSAGE = 'This hold ended. If you already paid, it will
 export const CONFIRMING_MESSAGE = 'We are confirming your payment, please do not pay again.';
 
 /** Badge and banner colours for each tone, in the app's theme. */
+// Shared design tokens: the same tone colours as the website.
 export const toneColors: Record<Tone, { bg: string; fg: string }> = {
-    success: { bg: '#dcfce7', fg: '#15803d' },
-    warning: { bg: '#fef3c7', fg: '#92400e' },
-    danger: { bg: '#fee2e2', fg: '#b91c1c' },
-    info: { bg: '#F4F0FA', fg: '#4b2192' },
-    muted: { bg: '#f3f4f6', fg: '#4b5563' },
+    success: { bg: Tokens.color.successSoft, fg: Tokens.color.successInk },
+    warning: { bg: Tokens.color.warningSoft, fg: Tokens.color.warningInk },
+    danger: { bg: Tokens.color.dangerSoft, fg: Tokens.color.dangerInk },
+    info: { bg: Tokens.color.primarySoft, fg: Tokens.color.primary },
+    muted: { bg: Tokens.color.surfaceMuted, fg: Tokens.color.inkMuted },
 };

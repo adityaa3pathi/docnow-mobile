@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
 
 import { serverNow } from '@/lib/consult/time';
+import { useAppActive } from './use-app-active';
 
-/** The server's clock (so a wrong phone clock cannot skew countdowns), re-read every `intervalMs`. */
-export function useServerNow(intervalMs = 1_000): number {
+/** The server's clock, re-read every `everyMs` while the app is in front, so a Join button appears on time. */
+export function useServerNow(everyMs = 15_000) {
   const [now, setNow] = useState(() => serverNow());
+  const active = useAppActive(() => setNow(serverNow()));
+
   useEffect(() => {
-    const t = setInterval(() => setNow(serverNow()), intervalMs);
+    if (!active) return;
+    const t = setInterval(() => setNow(serverNow()), everyMs);
     return () => clearInterval(t);
-  }, [intervalMs]);
+  }, [active, everyMs]);
+
   return now;
 }

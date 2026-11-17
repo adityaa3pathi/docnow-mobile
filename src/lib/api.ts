@@ -6,8 +6,12 @@ import { recordServerDate } from '@/lib/consult/time';
 const ACCESS_KEY = 'docnow_access';
 const REFRESH_KEY = 'docnow_refresh';
 
+/** Missing in a build means every call goes to "undefined/…" and looks like a network failure. */
+export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
+export const apiConfigured = /^https?:\/\//.test(API_URL);
+
 export const api = create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL,
+  baseURL: API_URL,
   headers: { 'x-client-type': 'mobile' },
   timeout: 15000,
 });
@@ -26,6 +30,8 @@ export async function hasTokens() {
   return (await SecureStore.getItemAsync(REFRESH_KEY)) !== null;
 }
 
+const SESSIONLESS = ['/api/auth/refresh', '/api/auth/login/', '/api/auth/signup', '/api/auth/forgot'];
+
 let onSessionExpired: () => void = () => {};
 export function setSessionExpiredHandler(fn: () => void) {
   onSessionExpired = fn;
@@ -43,10 +49,11 @@ let refreshing: Promise<void> | null = null;
 async function refreshTokens() {
   const refreshToken = await SecureStore.getItemAsync(REFRESH_KEY);
   if (!refreshToken) throw new Error('No refresh token');
+  // Same 15 s cap as every other call: a hung refresh would block all requests waiting on it.
   const { data } = await axios.post(
-    `${process.env.EXPO_PUBLIC_API_URL}/api/auth/refresh`,
+    `${API_URL}/api/auth/refresh`,
     { refreshToken },
-    { headers: { 'x-client-type': 'mobile' } },
+    { headers: { 'x-client-type': 'mobile' }, timeout: 15000 },
   );
   await saveTokens(data.accessToken, data.refreshToken);
 }
@@ -59,7 +66,9 @@ api.interceptors.response.use(
   },
   async (error: AxiosError) => {
     const original = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
-    const isAuthCall = original?.url?.startsWith('/api/auth/');
+    // Only calls made without a session skip the refresh. /api/auth/me and /logout need it: skipping
+    // them logged people out on every reopen and left logged-out sessions alive on the server.
+    const isAuthCall = SESSIONLESS.some((path) => original?.url?.startsWith(path));
     if (error.response?.status !== 401 || !original || original._retried || isAuthCall) {
       throw error;
     }
